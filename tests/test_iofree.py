@@ -16,6 +16,8 @@ def http_response_reader():
     assert data == b"haha"
     number, = yield from iofree.read_struct("!H")
     assert number == 8 * 256 + 8
+    number = yield from iofree.read_int(3)
+    assert number == int.from_bytes(b"\x11\x11\x11", "big")
     assert (yield from iofree.peek(2)) == b"co"
     assert (yield from iofree.read(7)) == b"content"
     yield from iofree.write(b"abc")
@@ -36,7 +38,7 @@ def test_http_parser():
         + datetime.now().strftime("%a, %d %b %Y %H:%M:%S GMT").encode()
         + b"\r\nServer: nginx\r\n"
         b"Vary: Accept-Encoding\r\n\r\n"
-        b"haha\x08\x08content extra"
+        b"haha\x08\x08\x11\x11\x11content extra"
     )
     while response:
         n = random.randrange(1, 30)

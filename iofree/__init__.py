@@ -1,6 +1,6 @@
 "io-free stream parser which helps implementing network protocols the `Sans-IO` way"
 import struct
-from enum import IntEnum
+from enum import IntEnum, auto
 
 __version__ = "0.1.0"
 
@@ -13,19 +13,20 @@ class NoResult(RuntimeError):
 
 
 class Traps(IntEnum):
-    _read = 0
-    _read_more = 1
-    _read_until = 2
-    _read_struct = 3
-    _write = 4
-    _wait = 5
-    _peek = 6
+    _read = auto()
+    _read_more = auto()
+    _read_until = auto()
+    _read_struct = auto()
+    _read_int = auto()
+    _write = auto()
+    _wait = auto()
+    _peek = auto()
 
 
 class State(IntEnum):
-    _state_wait = 0
-    _state_next = 1
-    _state_end = 2
+    _state_wait = auto()
+    _state_next = auto()
+    _state_end = auto()
 
 
 class Parser:
@@ -41,11 +42,16 @@ class Parser:
         self._process()
 
     def send(self, data: bytes = b""):
+        """
+        send data for parsing
+        """
         self.input.extend(data)
         self._process()
 
     def read(self, nbytes: int = 0) -> bytes:
-        "read *at most* ``nbytes``"
+        """
+        read *at most* ``nbytes``
+        """
         if nbytes == 0 or len(self.output) <= nbytes:
             data = bytes(self.output)
             del self.output[:]
@@ -59,6 +65,9 @@ class Parser:
         return self.res is not _no_result
 
     def get_result(self):
+        """
+        raises *NoResult* exception if no result has been set
+        """
         self._process()
         if not self.has_result:
             raise NoResult
@@ -98,7 +107,10 @@ class Parser:
             self._last_trap = None
 
     def readall(self) -> bytes:
-        return self._read()
+        """
+        retrieve data from input back
+        """
+        return self._read(0)
 
     def _read(self, nbytes: int = 0) -> bytes:
         if nbytes == 0:
@@ -142,11 +154,18 @@ class Parser:
         del self.input[:size]
         return result
 
+    def _read_int(self, nbytes: int, byteorder: str = "big") -> int:
+        assert nbytes > 0, "nbytes must > 0"
+        if len(self.input) < nbytes:
+            return _wait
+        data = self._read(nbytes)
+        return int.from_bytes(data, byteorder)
+
     def _write(self, data: bytes):
         self.output.extend(data)
 
     def _wait(self):
-        if not getattr(self, '_waiting', False):
+        if not getattr(self, "_waiting", False):
             self._waiting = True
             return _wait
         self._waiting = False
@@ -160,28 +179,57 @@ class Parser:
 
 
 def read(nbytes: int = 0) -> bytes:
+    """
+    if nbytes = 0, read as many as it can, empty bytes is valid;
+    if nbytes > 0, read *exactly* ``nbytes``
+    """
     return (yield (Traps._read, nbytes))
 
 
 def read_more(nbytes: int = 1) -> bytes:
+    """
+    read *at least* ``nbytes``
+    """
     return (yield (Traps._read_more, nbytes))
 
 
 def read_until(data: bytes, return_tail: bool = True) -> bytes:
+    """
+    read until some bytes appear
+    """
     return (yield (Traps._read_until, data, return_tail))
 
 
 def read_struct(fmt: str) -> tuple:
+    """
+    read specific formated data
+    """
     return (yield (Traps._read_struct, fmt))
 
 
+def read_int(nbytes: int, byteorder: str = "big") -> int:
+    """
+    read some bytes as integer
+    """
+    return (yield (Traps._read_int, nbytes, byteorder))
+
+
 def write(data: bytes):
+    """
+    write some bytes to the output buffer
+    """
     return (yield (Traps._write, data))
 
 
 def wait():
+    """
+    wait for next send or get_result event
+    """
     return (yield (Traps._wait,))
 
 
 def peek(nbytes: int = 1) -> bytes:
+    """
+    peek many bytes without taking them away from buffer
+    """
     return (yield (Traps._peek, nbytes))
