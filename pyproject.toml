@@ -1,0 +1,25 @@
+[tool.black]
+line-length = 88
+include = '\.pyi?$'
+
+[build-system]
+requires = ["flit"]
+build-backend = "flit.buildapi"
+
+[tool.flit.metadata]
+module = "iofree"
+author = "Yingbo Gu"
+author-email = "tensiongyb@gmail.com"
+maintainer="Yingbo Gu"
+maintainer-email="tensiongyb@gmail.com"
+home-page = "https://github.com/guyingbo/iofree"
+description-file = "README.md"
+requires-python=">=3.6"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+]
+dev-requires = ["pytest", "coverage", "pytest-cov"]
+keywords = "parser Sans-IO io-free"

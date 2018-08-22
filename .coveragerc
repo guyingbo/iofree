@@ -1,0 +1,7 @@
+[run]
+source = iofree
+
+[report]
+include =
+    iofree/*.py
+    tests/*.py
