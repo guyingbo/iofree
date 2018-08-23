@@ -2,7 +2,7 @@
 import struct
 from enum import IntEnum, auto
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 _no_result = object()
 _wait = object()
@@ -233,3 +233,12 @@ def peek(nbytes: int = 1) -> bytes:
     peek many bytes without taking them away from buffer
     """
     return (yield (Traps._peek, nbytes))
+
+
+def parser(generator_func):
+
+    def create_parser(*args, **kwargs):
+        return Parser(generator_func(*args, **kwargs))
+
+    generator_func.parser = create_parser
+    return generator_func

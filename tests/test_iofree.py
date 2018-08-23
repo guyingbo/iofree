@@ -4,7 +4,8 @@ import pytest
 from datetime import datetime
 
 
-def http_response_reader():
+@iofree.parser
+def http_response():
     first_line = yield from iofree.read_until(b"\r\n")
     ver, code, status = first_line[:-2].split()
     assert ver == b"HTTP/1.1"
@@ -28,7 +29,7 @@ def http_response_reader():
 
 
 def test_http_parser():
-    parser = iofree.Parser(http_response_reader())
+    parser = http_response.parser()
     response = bytearray(
         b"HTTP/1.1 200 OK\r\n"
         b"Connection: keep-alive\r\n"
@@ -60,18 +61,20 @@ def test_http_parser2():
         test_http_parser()
 
 
-def simple_reader():
+@iofree.parser
+def simple():
     yield from iofree.read(1)
     raise Exception("special")
 
 
+@iofree.parser
 def bad_reader():
     yield from iofree.wait()
     yield "bad"
 
 
 def test_exception():
-    parser = iofree.Parser(simple_reader())
+    parser = simple.parser()
     with pytest.raises(Exception) as exc_info:
         parser.send(b"haha")
     assert exc_info.value.args[0] == "special"
@@ -80,6 +83,6 @@ def test_exception():
 
 
 def test_bad():
-    parser = iofree.Parser(bad_reader())
+    parser = bad_reader.parser()
     with pytest.raises(RuntimeError):
         parser.send(b"haha")
