@@ -64,6 +64,7 @@ def test_http_parser2():
 @iofree.parser
 def simple():
     yield from iofree.read(1)
+    assert (yield from iofree.has_more_data())
     raise Exception("special")
 
 

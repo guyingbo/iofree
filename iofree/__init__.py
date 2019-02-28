@@ -2,7 +2,7 @@
 import struct
 from enum import IntEnum, auto
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 _no_result = object()
 _wait = object()
@@ -21,6 +21,7 @@ class Traps(IntEnum):
     _write = auto()
     _wait = auto()
     _peek = auto()
+    _has_more_data = auto()
 
 
 class State(IntEnum):
@@ -88,7 +89,7 @@ class Parser:
                 self._state = State._state_end
                 self.res = e.value
                 return
-            except Exception as e:
+            except Exception:
                 self._state = State._state_end
                 raise
             else:
@@ -97,13 +98,13 @@ class Parser:
                     raise RuntimeError(f"Expect Traps object, but got: {trap}")
         else:
             trap, *args = self._last_trap
-        r = getattr(self, trap.name)(*args)
-        if r is _wait:
+        result = getattr(self, trap.name)(*args)
+        if result is _wait:
             self._state = State._state_wait
             self._last_trap = (trap, *args)
         else:
             self._state = State._state_next
-            self._next_value = r
+            self._next_value = result
             self._last_trap = None
 
     def readall(self) -> bytes:
@@ -111,55 +112,6 @@ class Parser:
         retrieve data from input back
         """
         return self._read(0)
-
-    def _read(self, nbytes: int = 0) -> bytes:
-        if nbytes == 0:
-            data = bytes(self.input)
-            del self.input[:]
-            return data
-        if len(self.input) < nbytes:
-            return _wait
-        data = bytes(self.input[:nbytes])
-        del self.input[:nbytes]
-        return data
-
-    def _read_more(self, nbytes: int = 1) -> bytes:
-        assert nbytes > 0, "nbytes must > 0"
-        if len(self.input) < nbytes:
-            return _wait
-        data = bytes(self.input)
-        del self.input[:]
-        return data
-
-    def _read_until(self, data: bytes, return_tail: bool = True) -> bytes:
-        index = self.input.find(data, self._pos)
-        if index == -1:
-            self._pos = len(self.input) - len(data) + 1
-            self._pos = self._pos if self._pos > 0 else 0
-            return _wait
-        size = index + len(data)
-        if return_tail:
-            data = bytes(self.input[:size])
-        else:
-            data = bytes(self.input[:index])
-        del self.input[:size]
-        self._pos = 0
-        return data
-
-    def _read_struct(self, fmt: str) -> tuple:
-        size = struct.calcsize(fmt)
-        if len(self.input) < size:
-            return _wait
-        result = struct.unpack_from(fmt, self.input)
-        del self.input[:size]
-        return result
-
-    def _read_int(self, nbytes: int, byteorder: str = "big") -> int:
-        assert nbytes > 0, "nbytes must > 0"
-        if len(self.input) < nbytes:
-            return _wait
-        data = self._read(nbytes)
-        return int.from_bytes(data, byteorder)
 
     def _write(self, data: bytes):
         self.output.extend(data)
@@ -171,47 +123,105 @@ class Parser:
         self._waiting = False
         return
 
-    def _peek(self, nbytes: int = 1) -> bytes:
-        assert nbytes > 0, "nbytes must > 0"
-        if len(self.input) < nbytes:
+    def _read(self, nbytes: int = 0, from_=None) -> bytes:
+        buf = self.input if from_ is None else from_
+        if nbytes == 0:
+            data = bytes(buf)
+            del buf[:]
+            return data
+        if len(buf) < nbytes:
             return _wait
-        return bytes(self.input[:nbytes])
+        data = bytes(buf[:nbytes])
+        del buf[:nbytes]
+        return data
+
+    def _read_more(self, nbytes: int = 1, from_=None) -> bytes:
+        buf = self.input if from_ is None else from_
+        assert nbytes > 0, "nbytes must > 0"
+        if len(buf) < nbytes:
+            return _wait
+        data = bytes(buf)
+        del buf[:]
+        return data
+
+    def _read_until(self, data: bytes, return_tail: bool = True, from_=None) -> bytes:
+        buf = self.input if from_ is None else from_
+        index = buf.find(data, self._pos)
+        if index == -1:
+            self._pos = len(buf) - len(data) + 1
+            self._pos = self._pos if self._pos > 0 else 0
+            return _wait
+        size = index + len(data)
+        if return_tail:
+            data = bytes(buf[:size])
+        else:
+            data = bytes(buf[:index])
+        del buf[:size]
+        self._pos = 0
+        return data
+
+    def _read_struct(self, fmt: str, from_=None) -> tuple:
+        buf = self.input if from_ is None else from_
+        size = struct.calcsize(fmt)
+        if len(buf) < size:
+            return _wait
+        result = struct.unpack_from(fmt, buf)
+        del buf[:size]
+        return result
+
+    def _read_int(self, nbytes: int, byteorder: str = "big", from_=None) -> int:
+        assert nbytes > 0, "nbytes must > 0"
+        buf = self.input if from_ is None else from_
+        if len(buf) < nbytes:
+            return _wait
+        data = self._read(nbytes)
+        return int.from_bytes(data, byteorder)
+
+    def _peek(self, nbytes: int = 1, from_=None) -> bytes:
+        assert nbytes > 0, "nbytes must > 0"
+        buf = self.input if from_ is None else from_
+        if len(buf) < nbytes:
+            return _wait
+        return bytes(buf[:nbytes])
+
+    def _has_more_data(self) -> bool:
+        return bool(self.input)
 
 
-def read(nbytes: int = 0) -> bytes:
+def read(nbytes: int = 0, *, from_=None) -> bytes:
     """
     if nbytes = 0, read as many as it can, empty bytes is valid;
     if nbytes > 0, read *exactly* ``nbytes``
     """
-    return (yield (Traps._read, nbytes))
+    return (yield (Traps._read, nbytes, from_))
 
 
-def read_more(nbytes: int = 1) -> bytes:
+def read_more(nbytes: int = 1, *, from_=None) -> bytes:
     """
     read *at least* ``nbytes``
     """
-    return (yield (Traps._read_more, nbytes))
+    return (yield (Traps._read_more, nbytes, from_))
 
 
-def read_until(data: bytes, return_tail: bool = True) -> bytes:
+def read_until(data: bytes, *, return_tail: bool = True, from_=None) -> bytes:
     """
     read until some bytes appear
     """
-    return (yield (Traps._read_until, data, return_tail))
+    return (yield (Traps._read_until, data, return_tail, from_))
 
 
-def read_struct(fmt: str) -> tuple:
+def read_struct(fmt: str, *, from_=None) -> tuple:
     """
     read specific formated data
     """
-    return (yield (Traps._read_struct, fmt))
+    return (yield (Traps._read_struct, fmt, from_))
 
 
-def read_int(nbytes: int, byteorder: str = "big") -> int:
+def read_int(nbytes: int, *, byteorder: str = "big", from_=None) -> int:
     """
     read some bytes as integer
     """
-    return (yield (Traps._read_int, nbytes, byteorder))
+    return (yield (Traps._read_int, nbytes, byteorder, from_))
 
 
 def write(data: bytes):
@@ -228,15 +238,18 @@ def wait():
     return (yield (Traps._wait,))
 
 
-def peek(nbytes: int = 1) -> bytes:
+def peek(nbytes: int = 1, *, from_=None) -> bytes:
     """
     peek many bytes without taking them away from buffer
     """
-    return (yield (Traps._peek, nbytes))
+    return (yield (Traps._peek, nbytes, from_))
+
+
+def has_more_data() -> bool:
+    return (yield (Traps._has_more_data,))
 
 
 def parser(generator_func):
-
     def create_parser(*args, **kwargs):
         return Parser(generator_func(*args, **kwargs))
 
