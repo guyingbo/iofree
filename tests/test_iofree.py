@@ -6,6 +6,7 @@ from datetime import datetime
 
 @iofree.parser
 def http_response():
+    parser = yield from iofree.get_parser()
     first_line = yield from iofree.read_until(b"\r\n")
     ver, code, status = first_line[:-2].split()
     assert ver == b"HTTP/1.1"
@@ -22,6 +23,7 @@ def http_response():
     assert (yield from iofree.peek(2)) == b"co"
     assert (yield from iofree.read(7)) == b"content"
     yield from iofree.write(b"abc")
+    parser.write(b"def")
     yield from iofree.wait()
     assert len((yield from iofree.read_more(5))) >= 5
     yield from iofree.read()
@@ -63,8 +65,10 @@ def test_http_parser2():
 
 @iofree.parser
 def simple():
+    parser = yield from iofree.get_parser()
     yield from iofree.read(1)
-    assert (yield from iofree.has_more_data())
+    assert parser.has_more_data()
+    assert not parser.finished()
     raise Exception("special")
 
 

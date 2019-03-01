@@ -1,10 +1,9 @@
 "io-free stream parser which helps implementing network protocols the `Sans-IO` way"
 import struct
 from enum import IntEnum, auto
+from collections import deque
 
 __version__ = "0.1.2"
-
-_no_result = object()
 _wait = object()
 
 
@@ -21,7 +20,7 @@ class Traps(IntEnum):
     _write = auto()
     _wait = auto()
     _peek = auto()
-    _has_more_data = auto()
+    _get_parser = auto()
 
 
 class State(IntEnum):
@@ -35,7 +34,7 @@ class Parser:
         self.gen = gen
         self.input = bytearray()
         self.output = bytearray()
-        self.res = _no_result
+        self.res_queue = deque()
         self._next_value = None
         self._last_trap = None
         self._pos = 0
@@ -63,7 +62,7 @@ class Parser:
 
     @property
     def has_result(self) -> bool:
-        return self.res is not _no_result
+        return len(self.res_queue) > 0
 
     def get_result(self):
         """
@@ -72,10 +71,13 @@ class Parser:
         self._process()
         if not self.has_result:
             raise NoResult
-        return self.res
+        return self.res_queue.popleft()
+
+    def finished(self):
+        return self._state is State._state_end
 
     def _process(self):
-        if self.has_result or self._state is State._state_end:
+        if self._state is State._state_end:
             return
         self._state = State._state_next
         while self._state is State._state_next:
@@ -87,7 +89,7 @@ class Parser:
                 trap, *args = self.gen.send(self._next_value)
             except StopIteration as e:
                 self._state = State._state_end
-                self.res = e.value
+                self.res_queue.append(e.value)
                 return
             except Exception:
                 self._state = State._state_end
@@ -112,6 +114,12 @@ class Parser:
         retrieve data from input back
         """
         return self._read(0)
+
+    def has_more_data(self) -> bool:
+        return len(self.input) > 0
+
+    def write(self, data: bytes):
+        self.output.extend(data)
 
     def _write(self, data: bytes):
         self.output.extend(data)
@@ -184,8 +192,8 @@ class Parser:
             return _wait
         return bytes(buf[:nbytes])
 
-    def _has_more_data(self) -> bool:
-        return bool(self.input)
+    def _get_parser(self):
+        return self
 
 
 def read(nbytes: int = 0, *, from_=None) -> bytes:
@@ -245,8 +253,8 @@ def peek(nbytes: int = 1, *, from_=None) -> bytes:
     return (yield (Traps._peek, nbytes, from_))
 
 
-def has_more_data() -> bool:
-    return (yield (Traps._has_more_data,))
+def get_parser():
+    return (yield (Traps._get_parser,))
 
 
 def parser(generator_func):

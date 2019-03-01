@@ -21,3 +21,4 @@ pip install iofree
 * [shadowsocks aead parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/aead/parser.py)
 * [socks5 parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/socks/parser.py)
 * [simple http parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/http/parser.py)
+* [TLS1.3 parser](https://github.com/guyingbo/tls1.3/blob/master/tls/__init__.py)
