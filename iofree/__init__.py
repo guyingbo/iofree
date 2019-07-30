@@ -3,11 +3,11 @@ import struct
 from enum import IntEnum, auto
 from collections import deque
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 _wait = object()
 
 
-class NoResult(RuntimeError):
+class NoResult(Exception):
     ""
 
 
@@ -70,7 +70,7 @@ class Parser:
         """
         self._process()
         if not self.has_result:
-            raise NoResult
+            raise NoResult("no result")
         return self.res_queue.popleft()
 
     def finished(self):
