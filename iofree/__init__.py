@@ -1,5 +1,6 @@
 "io-free stream parser which helps implementing network protocols the `Sans-IO` way"
-import struct
+import typing
+from struct import Struct
 from enum import IntEnum, auto
 from collections import deque
 
@@ -30,7 +31,7 @@ class State(IntEnum):
 
 
 class Parser:
-    def __init__(self, gen):
+    def __init__(self, gen: typing.Generator):
         self.gen = gen
         self.input = bytearray()
         self.output = bytearray()
@@ -41,7 +42,14 @@ class Parser:
         self._state = State._state_wait
         self._process()
 
-    def send(self, data: bytes = b""):
+    def parse(self, data: bytes):
+        """
+        parse bytes
+        """
+        self.send(data)
+        return self.get_result()
+
+    def send(self, data: bytes = b"") -> None:
         """
         send data for parsing
         """
@@ -73,7 +81,7 @@ class Parser:
             raise NoResult("no result")
         return self.res_queue.popleft()
 
-    def finished(self):
+    def finished(self) -> bool:
         return self._state is State._state_end
 
     def _process(self):
@@ -118,7 +126,7 @@ class Parser:
     def has_more_data(self) -> bool:
         return len(self.input) > 0
 
-    def write(self, data: bytes):
+    def write(self, data: bytes) -> None:
         self.output.extend(data)
 
     def _write(self, data: bytes):
@@ -168,12 +176,12 @@ class Parser:
         self._pos = 0
         return data
 
-    def _read_struct(self, fmt: str, from_=None) -> tuple:
+    def _read_struct(self, struct_obj: Struct, from_=None) -> tuple:
         buf = self.input if from_ is None else from_
-        size = struct.calcsize(fmt)
+        size = struct_obj.size
         if len(buf) < size:
             return _wait
-        result = struct.unpack_from(fmt, buf)
+        result = struct_obj.unpack_from(buf)
         del buf[:size]
         return result
 
@@ -220,9 +228,16 @@ def read_until(data: bytes, *, return_tail: bool = True, from_=None) -> bytes:
 
 def read_struct(fmt: str, *, from_=None) -> tuple:
     """
-    read specific formated data
+    read specific formatted data
     """
-    return (yield (Traps._read_struct, fmt, from_))
+    return (yield (Traps._read_struct, Struct(fmt), from_))
+
+
+def read_raw_struct(struct_obj: Struct, *, from_=None) -> tuple:
+    """
+    read raw struct formatted data
+    """
+    return (yield (Traps._read_struct, struct_obj, from_))
 
 
 def read_int(nbytes: int, *, byteorder: str = "big", from_=None) -> int:
@@ -232,14 +247,14 @@ def read_int(nbytes: int, *, byteorder: str = "big", from_=None) -> int:
     return (yield (Traps._read_int, nbytes, byteorder, from_))
 
 
-def write(data: bytes):
+def write(data: bytes) -> None:
     """
     write some bytes to the output buffer
     """
     return (yield (Traps._write, data))
 
 
-def wait():
+def wait() -> None:
     """
     wait for next send or get_result event
     """
@@ -253,12 +268,12 @@ def peek(nbytes: int = 1, *, from_=None) -> bytes:
     return (yield (Traps._peek, nbytes, from_))
 
 
-def get_parser():
+def get_parser() -> Parser:
     return (yield (Traps._get_parser,))
 
 
-def parser(generator_func):
-    def create_parser(*args, **kwargs):
+def parser(generator_func: typing.Generator) -> typing.Generator:
+    def create_parser(*args, **kwargs) -> Parser:
         return Parser(generator_func(*args, **kwargs))
 
     generator_func.parser = create_parser
