@@ -15,6 +15,18 @@ io-free stream parser inspired by [ohneio](https://github.com/acatton/ohneio).
 pip install iofree
 ~~~
 
+## Advantages
+
+Using iofree, you can:
+
+* define network protocols and file format in a clear and precise manner
+* parse both binary streams and files
+
+
+## Tutorial: write a simple parser
+
+TODO
+
 ## Usage Examples:
 
 * [shadowsocks parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/shadowsocks/parser.py)

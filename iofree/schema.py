@@ -3,192 +3,21 @@ import enum
 import struct
 import typing
 from struct import Struct
-from . import read_raw_struct, read, read_until, read_struct, Parser
+from collections import deque
+from . import read_raw_struct, read, read_until, read_struct, Parser, get_parser, wait
+
+_parent_stack = deque()
+_mapping_stack = deque()
 
 
 class Unit(abc.ABC):
     @abc.abstractmethod
-    def get_value(self, namespace: typing.Mapping) -> typing.Generator:
+    def get_value(self) -> typing.Generator:
         "get object you want from bytes"
 
     @abc.abstractmethod
     def __call__(self, obj: typing.Any) -> bytes:
-        "convert your object to bytes"
-
-
-class StructUnit(Unit):
-    def __init__(self, format_: str):
-        self._struct = Struct(format_)
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self._struct.format})"
-
-    def get_value(self, namespace):
-        return (yield from read_raw_struct(self._struct))[0]
-
-    def __call__(self, obj) -> bytes:
-        return self._struct.pack(obj)
-
-
-int8 = StructUnit("b")
-uint8 = StructUnit("B")
-int16 = StructUnit("h")
-int16be = StructUnit(">h")
-uint16 = StructUnit("H")
-uint16be = StructUnit(">H")
-int32 = StructUnit("i")
-int32be = StructUnit(">i")
-uint32 = StructUnit("I")
-uint32be = StructUnit(">I")
-int64 = StructUnit("q")
-int64be = StructUnit(">q")
-uint64 = StructUnit("Q")
-uint64be = StructUnit(">Q")
-float32 = StructUnit("f")
-float32be = StructUnit(">f")
-float64 = StructUnit("d")
-float64be = StructUnit(">d")
-
-
-class Bytes(Unit):
-    def __init__(self, length):
-        self.length = length
-        if length >= 0:
-            self._struct = Struct(f"{length}s")
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.length})"
-
-    def get_value(self, namespace):
-        if self.length >= 0:
-            return (yield from read_raw_struct(self._struct))[0]
-        else:
-            return (yield from read())
-
-    def __call__(self, obj) -> bytes:
-        if self.length >= 0:
-            return self._struct.pack(obj)
-        else:
-            return obj
-
-
-class String(Bytes):
-    def __init__(self, length, encoding="utf-8"):
-        super().__init__(length)
-        self.encoding = encoding
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.length})"
-
-    def get_value(self, namespace):
-        v, = yield from read_raw_struct(self._struct)
-        return v.decode(self.encoding)
-
-    def __call__(self, obj: str) -> bytes:
-        return super().__call__(obj.encode(self.encoding))
-
-
-class MustEqual(Unit):
-    def __init__(self, unit, value):
-        self.unit = unit
-        self.value = value
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.unit}, {self.value})"
-
-    def get_value(self, namespace):
-        result = yield from self.unit.get_value(namespace)
-        assert self.value == result
-        return result
-
-    def __call__(self, obj) -> bytes:
-        assert self.value == obj
-        return self.unit(obj)
-
-
-class EndWith(Unit):
-    def __init__(self, _bytes):
-        self._bytes = _bytes
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self._bytes})"
-
-    def get_value(self, namespace):
-        return (yield from read_until(self._bytes, return_tail=False))
-
-    def __call__(self, obj: bytes) -> bytes:
-        return obj + self._bytes
-
-
-class LengthPrefixedBytes(Unit):
-    def __init__(self, unit: StructUnit):
-        self.unit = unit
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.unit})"
-
-    def get_value(self, namespace):
-        length = yield from self.unit.get_value(namespace)
-        return (yield from read_struct(f"{length}s"))[0]
-
-    def __call__(self, obj: bytes) -> bytes:
-        length = len(obj)
-        return self.unit(length) + struct.pack(f"{length}s", obj)
-
-
-class LengthPrefixedString(Unit):
-    def __init__(self, unit: StructUnit, encoding="utf-8"):
-        self.unit = unit
-        self.encoding = encoding
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.unit}, {self.encoding})"
-
-    def get_value(self, namespace):
-        length = yield from self.unit.get_value(namespace)
-        v = (yield from read_struct(f"{length}s"))[0]
-        return v.decode(self.encoding)
-
-    def __call__(self, obj: str) -> bytes:
-        length = len(obj)
-        return self.unit(length) + struct.pack(f"{length}s", obj.encode(self.encoding))
-
-
-class Switch(Unit):
-    def __init__(self, ref, cases):
-        self.ref = ref
-        self.cases = cases
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.ref}, {self.cases})"
-
-    def get_value(self, namespace):
-        unit = self.cases[namespace[self.ref]]
-        if isinstance(unit, Unit):
-            return (yield from unit.get_value(namespace))
-        else:
-            return (yield from unit.get_value())
-
-    def __call__(self, parent, obj) -> bytes:
-        if isinstance(obj, BinarySchema):
-            return obj.binary
-        return self.cases[getattr(parent, self.ref)](obj)
-
-
-class SizedIntEnum(Unit):
-    def __init__(self, unit: StructUnit, enum_class):
-        self.unit = unit
-        self.enum_class = enum_class
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.unit}, {self.enum_class})"
-
-    def get_value(self, namespace):
-        v = yield from self.unit.get_value(namespace)
-        return self.enum_class(v)
-
-    def __call__(self, obj: enum.IntEnum) -> bytes:
-        return self.unit(obj.value)
+        "convert user-given object to bytes"
 
 
 class BinarySchemaMetaclass(type):
@@ -222,17 +51,21 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
             raise ValueError(
                 f"need {len(self.__class__._fields)} args, got {len(args)}"
             )
+        _parent_stack.append(self)
+
         binary_list = []
         for arg, (name, field) in zip(args, self.__class__._fields.items()):
-            if isinstance(field, Switch):
-                binary = field(self, arg)
-            elif isinstance(arg, BinarySchema):
+            if isinstance(field, BinarySchemaMetaclass):
                 binary = arg.binary
-            else:
+            elif isinstance(field, Unit):
                 binary = field(arg)
+            if arg is ...:
+                arg = field.get_default()
             setattr(self, name, arg)
             binary_list.append(binary)
         self.binary = b"".join(binary_list)
+
+        _parent_stack.pop()
 
     def __str__(self):
         sl = []
@@ -254,16 +87,264 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
         return True
 
     @classmethod
-    def get_value(cls, namespace=None):
-        namespace = {}
+    def get_value(cls) -> typing.Generator:
+        mapping = {}
+        _mapping_stack.append(mapping)
         for name, field in cls._fields.items():
-            namespace[name] = yield from field.get_value(namespace)
-        return cls(*namespace.values())
+            mapping[name] = yield from field.get_value()
+        _mapping_stack.pop()
+        return cls(*mapping.values())
 
     @classmethod
-    def get_parser(cls):
+    def get_parser(cls) -> Parser:
         return Parser(cls.get_value())
 
     @classmethod
-    def parse(cls, data: bytes):
+    def parse(cls, data: bytes) -> "BinarySchema":
         return cls.get_parser().parse(data)
+
+
+FieldType = typing.Union[BinarySchemaMetaclass, Unit]
+
+
+class StructUnit(Unit):
+    def __init__(self, format_: str):
+        self._struct = Struct(format_)
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self._struct.format})"
+
+    def get_value(self):
+        return (yield from read_raw_struct(self._struct))[0]
+
+    def __call__(self, obj) -> bytes:
+        return self._struct.pack(obj)
+
+
+class IntUnit(Unit):
+    def __init__(self, length: int, byteorder: str, signed: bool = False):
+        self.length = length
+        self.byteorder = byteorder
+        self.signed = signed
+
+    def get_value(self):
+        a = yield from read(self.length)
+        return int.from_bytes(a, self.byteorder, signed=self.signed)
+
+    def __call__(self, obj: int) -> bytes:
+        return obj.to_bytes(self.length, self.byteorder, signed=self.signed)
+
+
+int8 = StructUnit("b")
+uint8 = StructUnit("B")
+int16 = StructUnit("h")
+int16be = StructUnit(">h")
+uint16 = StructUnit("H")
+uint16be = StructUnit(">H")
+int24 = IntUnit(3, "little", signed=True)
+int24be = IntUnit(3, "big", signed=True)
+uint24 = IntUnit(3, "little", signed=False)
+uint24be = IntUnit(3, "big", signed=False)
+int32 = StructUnit("i")
+int32be = StructUnit(">i")
+uint32 = StructUnit("I")
+uint32be = StructUnit(">I")
+int64 = StructUnit("q")
+int64be = StructUnit(">q")
+uint64 = StructUnit("Q")
+uint64be = StructUnit(">Q")
+float32 = StructUnit("f")
+float32be = StructUnit(">f")
+float64 = StructUnit("d")
+float64be = StructUnit(">d")
+
+
+class Bytes(Unit):
+    def __init__(self, length):
+        self.length = length
+        if length >= 0:
+            self._struct = Struct(f"{length}s")
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.length})"
+
+    def get_value(self):
+        if self.length >= 0:
+            return (yield from read_raw_struct(self._struct))[0]
+        else:
+            return (yield from read())
+
+    def __call__(self, obj) -> bytes:
+        if self.length >= 0:
+            return self._struct.pack(obj)
+        else:
+            return obj
+
+
+class String(Bytes):
+    def __init__(self, length, encoding="utf-8"):
+        super().__init__(length)
+        self.encoding = encoding
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.length})"
+
+    def get_value(self):
+        v, = yield from read_raw_struct(self._struct)
+        return v.decode(self.encoding)
+
+    def __call__(self, obj: str) -> bytes:
+        return super().__call__(obj.encode(self.encoding))
+
+
+class MustEqual(Unit):
+    def __init__(self, unit, value):
+        self.unit = unit
+        self.value = value
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.unit}, {self.value})"
+
+    def get_value(self):
+        result = yield from self.unit.get_value()
+        assert self.value == result
+        return result
+
+    def get_default(self):
+        return self.value
+
+    def __call__(self, obj) -> bytes:
+        if obj is not ...:
+            assert self.value == obj
+        return self.unit(self.value)
+
+
+class EndWith(Unit):
+    def __init__(self, _bytes):
+        self._bytes = _bytes
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self._bytes})"
+
+    def get_value(self):
+        return (yield from read_until(self._bytes, return_tail=False))
+
+    def __call__(self, obj: bytes) -> bytes:
+        return obj + self._bytes
+
+
+class LengthPrefixedBytes(Unit):
+    def __init__(self, length_unit: StructUnit):
+        self.length_unit = length_unit
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.length_unit})"
+
+    def get_value(self):
+        length = yield from self.length_unit.get_value()
+        return (yield from read_struct(f"{length}s"))[0]
+
+    def __call__(self, obj: bytes) -> bytes:
+        length = len(obj)
+        return self.length_unit(length) + struct.pack(f"{length}s", obj)
+
+
+class LengthPrefixedString(Unit):
+    def __init__(self, length_unit: StructUnit, encoding="utf-8"):
+        self.length_unit = length_unit
+        self.encoding = encoding
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.length_unit}, {self.encoding})"
+
+    def get_value(self):
+        length = yield from self.length_unit.get_value()
+        v, = yield from read_struct(f"{length}s")
+        return v.decode(self.encoding)
+
+    def __call__(self, obj: str) -> bytes:
+        length = len(obj)
+        return self.length_unit(length) + struct.pack(
+            f"{length}s", obj.encode(self.encoding)
+        )
+
+
+class LengthPrefixedObjectList(Unit):
+    def __init__(self, length_unit: StructUnit, object_unit: FieldType):
+        self.length_unit = length_unit
+        self.object_unit = object_unit
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.length_unit}, {self.object_unit})"
+
+    def get_value(self):
+        length = yield from self.length_unit.get_value()
+        data, = yield from read_struct(f"{length}s")
+        parser = Parser(self._gen())
+        return parser.parse(data)
+
+    def _gen(self):
+        parser = yield from get_parser()
+        lst = []
+        yield from wait()
+        while parser.has_more_data():
+            lst.append((yield from self.object_unit.get_value()))
+        return lst
+
+    def __call__(self, obj_list: typing.List[FieldType]) -> bytes:
+        if isinstance(self.object_unit, BinarySchemaMetaclass):
+            bytes_ = b"".join(bs.binary for bs in obj_list)
+        elif isinstance(self.object_unit, Unit):
+            bytes_ = b"".join(self.object_unit(bs) for bs in obj_list)
+        return self.length_unit(len(bytes_)) + bytes_
+
+
+class LengthPrefixedObject(LengthPrefixedObjectList):
+    def _gen(self):
+        parser = yield from get_parser()
+        v = yield from self.object_unit.get_value()
+        assert not parser.has_more_data()
+        return v
+
+    def __call__(self, obj: FieldType) -> bytes:
+        bytes_ = (
+            obj.binary
+            if isinstance(self.object_unit, BinarySchemaMetaclass)
+            else self.object_unit(obj)
+        )
+        return self.length_unit(len(bytes_)) + bytes_
+
+
+class Switch(Unit):
+    def __init__(self, ref: str, cases: typing.Mapping[typing.Any, FieldType]):
+        self.ref = ref
+        self.cases = cases
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.ref}, {self.cases})"
+
+    def get_value(self):
+        mapping = _mapping_stack[-1]
+        unit = self.cases[mapping[self.ref]]
+        return (yield from unit.get_value())
+
+    def __call__(self, obj) -> bytes:
+        parent = _parent_stack[-1]
+        real_field = self.cases[getattr(parent, self.ref)]
+        return real_field(obj) if isinstance(real_field, Unit) else obj.binary
+
+
+class SizedIntEnum(Unit):
+    def __init__(self, size_unit: StructUnit, enum_class):
+        self.size_unit = size_unit
+        self.enum_class = enum_class
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.size_unit}, {self.enum_class})"
+
+    def get_value(self):
+        v = yield from self.size_unit.get_value()
+        return self.enum_class(v)
+
+    def __call__(self, obj: enum.IntEnum) -> bytes:
+        return self.size_unit(obj.value)

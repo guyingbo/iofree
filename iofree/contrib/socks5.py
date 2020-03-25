@@ -1,14 +1,14 @@
 import enum
 import socket
 from struct import Struct
-from iofree import schema, read_raw_struct
+from .. import schema, read_raw_struct
 
 
 class IPv4(schema.Unit):
     def __init__(self):
         self._struct = Struct("4s")
 
-    def get_value(self, namespace):
+    def get_value(self):
         result, = yield from read_raw_struct(self._struct)
         return socket.inet_ntoa(result)
 
@@ -20,7 +20,7 @@ class IPv6(schema.Unit):
     def __init__(self):
         self._struct = Struct("16s")
 
-    def get_value(self, namespace):
+    def get_value(self):
         result, = yield from read_raw_struct(self._struct)
         return socket.inet_ntop(socket.AF_INET6, result)
 

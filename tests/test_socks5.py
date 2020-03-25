@@ -39,9 +39,6 @@ def test_reply():
 
 def test_udp_reply():
     udp_reply = socks5.Socks5UDPRelay(
-        b"\x00\x00",
-        32,
-        socks5.Addr(3, socks5.Hostname("google.com"), 80),
-        os.urandom(64),
+        ..., 32, socks5.Addr(3, socks5.Hostname("google.com"), 80), os.urandom(64)
     )
     check_schema(udp_reply)
