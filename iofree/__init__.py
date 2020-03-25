@@ -4,7 +4,7 @@ from struct import Struct
 from enum import IntEnum, auto
 from collections import deque
 
-__version__ = "0.1.3"
+__version__ = "0.2.0"
 _wait = object()
 
 
