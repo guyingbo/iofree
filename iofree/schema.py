@@ -190,7 +190,7 @@ class String(Bytes):
         return f"{self.__class__.__name__}({self.length})"
 
     def get_value(self):
-        v, = yield from read_raw_struct(self._struct)
+        (v,) = yield from read_raw_struct(self._struct)
         return v.decode(self.encoding)
 
     def __call__(self, obj: str) -> bytes:
@@ -259,7 +259,7 @@ class LengthPrefixedString(Unit):
 
     def get_value(self):
         length = yield from self.length_unit.get_value()
-        v, = yield from read_struct(f"{length}s")
+        (v,) = yield from read_struct(f"{length}s")
         return v.decode(self.encoding)
 
     def __call__(self, obj: str) -> bytes:
@@ -279,7 +279,7 @@ class LengthPrefixedObjectList(Unit):
 
     def get_value(self):
         length = yield from self.length_unit.get_value()
-        data, = yield from read_struct(f"{length}s")
+        (data,) = yield from read_struct(f"{length}s")
         parser = Parser(self._gen())
         return parser.parse(data)
 

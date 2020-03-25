@@ -16,7 +16,7 @@ def http_response():
     headers = header_lines.split(b"\r\n")
     data = yield from iofree.read(4)
     assert data == b"haha"
-    number, = yield from iofree.read_struct("!H")
+    (number,) = yield from iofree.read_struct("!H")
     assert number == 8 * 256 + 8
     number = yield from iofree.read_int(3)
     assert number == int.from_bytes(b"\x11\x11\x11", "big")
