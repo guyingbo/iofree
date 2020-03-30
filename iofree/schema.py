@@ -10,6 +10,10 @@ _parent_stack = deque()
 _mapping_stack = deque()
 
 
+class ParseError(Exception):
+    ""
+
+
 class Unit(abc.ABC):
     @abc.abstractmethod
     def get_value(self) -> typing.Generator:
@@ -71,7 +75,7 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
         sl = []
         for name in self.__class__._fields:
             value = getattr(self, name)
-            sl.append(f"{name}={value}")
+            sl.append(f"{name}={value!r}")
         s = ", ".join(sl)
         return f"{self.__class__.__name__}({s})"
 
@@ -90,8 +94,11 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
     def get_value(cls) -> typing.Generator:
         mapping = {}
         _mapping_stack.append(mapping)
-        for name, field in cls._fields.items():
-            mapping[name] = yield from field.get_value()
+        try:
+            for name, field in cls._fields.items():
+                mapping[name] = yield from field.get_value()
+        except Exception:
+            raise ParseError(mapping)
         _mapping_stack.pop()
         return cls(*mapping.values())
 
@@ -207,7 +214,8 @@ class MustEqual(Unit):
 
     def get_value(self):
         result = yield from self.unit.get_value()
-        assert self.value == result
+        if self.value != result:
+            raise ValueError(f"expect {self.value}, got {result}")
         return result
 
     def get_default(self):
@@ -215,7 +223,7 @@ class MustEqual(Unit):
 
     def __call__(self, obj) -> bytes:
         if obj is not ...:
-            assert self.value == obj
+            raise ValueError(f"expect {self.value}, got {obj}")
         return self.unit(self.value)
 
 
@@ -303,7 +311,8 @@ class LengthPrefixedObject(LengthPrefixedObjectList):
     def _gen(self):
         parser = yield from get_parser()
         v = yield from self.object_unit.get_value()
-        assert not parser.has_more_data()
+        if parser.has_more_data():
+            raise ValueError("extra bytes left")
         return v
 
     def __call__(self, obj: FieldType) -> bytes:

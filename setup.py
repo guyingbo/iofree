@@ -19,10 +19,14 @@ with open(os.path.join(BASE_PATH, "iofree", "__init__.py")) as f:
 with open(os.path.join(BASE_PATH, "README.md")) as readme:
     long_description = readme.read()
 
+description = (
+    "An io-free stream parser "
+    "which helps implementing network protocols in the `Sans-IO` way"
+)
 
 setup(
     name="iofree",
-    description="io-free stream parser which helps implementing network protocols the `Sans-IO` way",
+    description=description,
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="MIT",
@@ -40,6 +44,7 @@ setup(
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest", "coverage", "pytest-cov"],

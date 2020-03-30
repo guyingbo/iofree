@@ -153,7 +153,8 @@ class Parser:
 
     def _read_more(self, nbytes: int = 1, from_=None) -> bytes:
         buf = self.input if from_ is None else from_
-        assert nbytes > 0, "nbytes must > 0"
+        if nbytes <= 0:
+            raise ValueError(f"nbytes must > 0, but got {nbytes}")
         if len(buf) < nbytes:
             return _wait
         data = bytes(buf)
@@ -186,7 +187,8 @@ class Parser:
         return result
 
     def _read_int(self, nbytes: int, byteorder: str = "big", from_=None) -> int:
-        assert nbytes > 0, "nbytes must > 0"
+        if nbytes <= 0:
+            raise ValueError(f"nbytes must > 0, but got {nbytes}")
         buf = self.input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
@@ -194,7 +196,8 @@ class Parser:
         return int.from_bytes(data, byteorder)
 
     def _peek(self, nbytes: int = 1, from_=None) -> bytes:
-        assert nbytes > 0, "nbytes must > 0"
+        if nbytes <= 0:
+            raise ValueError(f"nbytes must > 0, but got {nbytes}")
         buf = self.input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
