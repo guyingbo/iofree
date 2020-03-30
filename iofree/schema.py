@@ -223,7 +223,8 @@ class MustEqual(Unit):
 
     def __call__(self, obj) -> bytes:
         if obj is not ...:
-            raise ValueError(f"expect {self.value}, got {obj}")
+            if self.value != obj:
+                raise ValueError(f"expect {self.value}, got {obj}")
         return self.unit(self.value)
 
 

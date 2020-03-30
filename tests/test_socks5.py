@@ -15,7 +15,7 @@ def check_schema(schema):
 def test_handshake():
     handshake = socks5.Socks5Handshake(5, b"abc")
     check_schema(handshake)
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         socks5.Socks5Handshake(6, b"xyz")
 
 
