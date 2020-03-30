@@ -13,7 +13,7 @@ def check_schema(schema):
 def test_basic():
     class Content(schema.BinarySchema):
         first_line = schema.EndWith(b"\r\n")
-        string = schema.String(5)
+        string = schema.String(5, encoding="ascii")
 
     content = Content(b"GET / HTTP/1.1", "abcde")
     assert content != 3
@@ -22,3 +22,18 @@ def test_basic():
     with pytest.raises(ValueError):
         Content(b"PUT")
     check_schema(content)
+
+    with pytest.raises(schema.ParseError):
+        Content.parse(b"abc\r\n" + "中文".encode())
+
+
+def test_equal():
+    class Content(schema.BinarySchema):
+        name = schema.MustEqual(schema.Bytes(3), b"abc")
+        name2 = schema.LengthPrefixedObject(schema.uint8, schema.Bytes(1))
+
+    with pytest.raises(schema.ParseError):
+        Content.parse(b"abb")
+
+    with pytest.raises(schema.ParseError):
+        Content.parse(b"abc\x02abc")
