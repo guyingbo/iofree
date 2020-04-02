@@ -49,8 +49,8 @@ def test_http_parser():
         del response[:n]
         parser.send(data)
     parser.send()
-    parser.read(1) == b"a"
-    parser.read() == b"bc"
+    parser.read_output(1) == b"a"
+    parser.read_output() == b"bc"
     assert parser.has_result
     headers = parser.get_result()
     assert len(headers) == 6

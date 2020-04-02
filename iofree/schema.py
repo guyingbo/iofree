@@ -57,7 +57,7 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
             )
         _parent_stack.append(self)
 
-        binary_list = []
+        self.bins = {}
         for arg, (name, field) in zip(args, self.__class__._fields.items()):
             if isinstance(field, BinarySchemaMetaclass):
                 binary = arg.binary
@@ -66,8 +66,8 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
             if arg is ...:
                 arg = field.get_default()
             setattr(self, name, arg)
-            binary_list.append(binary)
-        self.binary = b"".join(binary_list)
+            self.bins[name] = binary
+        self.binary = b"".join(self.bins.values())
 
         _parent_stack.pop()
 

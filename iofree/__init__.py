@@ -1,5 +1,6 @@
 "io-free stream parser which helps implementing network protocols the `Sans-IO` way"
 import typing
+import warnings
 from struct import Struct
 from enum import IntEnum, auto
 from collections import deque
@@ -42,7 +43,7 @@ class Parser:
         self._state = State._state_wait
         self._process()
 
-    def parse(self, data: bytes):
+    def parse(self, data: bytes) -> typing.Any:
         """
         parse bytes
         """
@@ -56,7 +57,7 @@ class Parser:
         self.input.extend(data)
         self._process()
 
-    def read(self, nbytes: int = 0) -> bytes:
+    def read_output(self, nbytes: int = 0) -> bytes:
         """
         read *at most* ``nbytes``
         """
@@ -67,6 +68,11 @@ class Parser:
         data = bytes(self.output[:nbytes])
         del self.output[:nbytes]
         return data
+
+    def read(self, nbytes: int = 0) -> bytes:
+        "backward-compatible for v0.1.x"
+        warnings.warn("backward-compatible for v0.1.x, use read_output instead")
+        return self.read_output(nbytes)
 
     @property
     def has_result(self) -> bool:
@@ -81,6 +87,9 @@ class Parser:
             raise NoResult("no result")
         return self.res_queue.popleft()
 
+    def set_result(self, result):
+        self.res_queue.append(result)
+
     def finished(self) -> bool:
         return self._state is State._state_end
 
@@ -91,7 +100,7 @@ class Parser:
         while self._state is State._state_next:
             self._next_state()
 
-    def _next_state(self):
+    def _next_state(self) -> None:
         if self._last_trap is None:
             try:
                 trap, *args = self.gen.send(self._next_value)
@@ -129,10 +138,10 @@ class Parser:
     def write(self, data: bytes) -> None:
         self.output.extend(data)
 
-    def _write(self, data: bytes):
+    def _write(self, data: bytes) -> None:
         self.output.extend(data)
 
-    def _wait(self):
+    def _wait(self) -> None:
         if not getattr(self, "_waiting", False):
             self._waiting = True
             return _wait
@@ -203,7 +212,7 @@ class Parser:
             return _wait
         return bytes(buf[:nbytes])
 
-    def _get_parser(self):
+    def _get_parser(self) -> "Parser":
         return self
 
 
