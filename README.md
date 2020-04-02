@@ -23,9 +23,9 @@ Using iofree, you can:
 * parse both binary streams and files
 
 
-## Tutorial: write a simple parser
+## Tutorial 1: write a simple parser
 
-~~~
+```python
 $ python3
 >>> from iofree import schema
 >>> schema.uint8(1)
@@ -47,11 +47,33 @@ b'\x01\x00\x00\x00\x03'
 >>> binary = _
 >>> Simple.parse(binary)
 <Simple(a=1, b=3)>
-~~~
+```
 
-## Tutorial: customize your struct unit
+## Built-in units:
 
-~~~
+commonly used number units:
+* int8 uint8
+* int16 int16be uint16 uint16be
+* int24 int24be uint24 uint24be
+* int32 int32be uint32 uint32be
+* int64 int64be uint64 uint64be
+* float32 float32be float64 float64be
+
+and also:
+* Bytes
+* String
+* MustEqual
+* EndWith
+* LengthPrefixedBytes
+* LengthPrefixedString
+* LengthPrefixedObjectList
+* LengthPrefixedObject
+* Switch
+* SizedIntEnum
+
+## Tutorial 2: customize your struct unit
+
+```python
 $ ipython3
 In [1]: import socket
    ...: from struct import Struct
@@ -75,36 +97,15 @@ In [2]: ipv4 = IPv4()
 
 In [3]: ipv4('192.168.0.1')
 Out[3]: b'\xc0\xa8\x00\x01'
-~~~
+```
 
-A complete socks5 Addr definition: [Link](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/common.py)
-
-## Built-in units:
-
-commonly used number units:
-* int8 uint8
-* int16 int16be uint16 uint16be
-* int24 int24be uint24 uint24be
-* int32 int32be uint32 uint32be
-* int64 int64be uint64 uint64be
-* float32 float32be float64 float64be
-
-and also:
-* Bytes
-* String
-* MustEqual
-* LengthPrefixedBytes
-* EndWith
-* LengthPrefixedString
-* LengthPrefixedObjectList
-* LengthPrefixedObject
-* Switch
-* SizedIntEnum
+A complete socks5 Addr [definition](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/common.py)
 
 ## Usage Examples:
 
 * [shadowsocks parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/shadowsocks/parser.py)
 * [shadowsocks aead parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/aead/parser.py)
+* [socks5 models](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/socks5.py)
 * [socks5 parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/socks/parser.py)
 * [simple http parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/http/parser.py)
-* [TLS1.3 parser](https://github.com/guyingbo/tls1.3/blob/master/tls/models.py)
+* TLS1.3 [models](https://github.com/guyingbo/tls1.3/blob/master/tls/models.py) and [parser](https://github.com/guyingbo/tls1.3/blob/0e329c44152bd31859668b929a0836eea439d07c/tls/session.py#L227)
