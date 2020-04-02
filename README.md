@@ -26,18 +26,11 @@ Using iofree, you can:
 ## Tutorial 1: write a simple parser
 
 ```python
-$ python3
 >>> from iofree import schema
 >>> schema.uint8(1)
 b'\x01'
 >>> schema.uint32be(3)
 b'\x00\x00\x00\x03'
->>> schema.uint8(256)
-Traceback (most recent call last):
-  File "<stdin>", line 1, in <module>
-  File "/Users/mac/Projects/iofree/iofree/schema.py", line 128, in __call__
-    return self._struct.pack(obj)
-struct.error: ubyte format requires 0 <= number <= 255
 >>> class Simple(schema.BinarySchema):
 ...     a = schema.uint8
 ...     b = schema.uint32be # "be" for big-endian
@@ -74,7 +67,6 @@ and also:
 ## Tutorial 2: customize your struct unit
 
 ```python
-$ ipython3
 In [1]: import socket
    ...: from struct import Struct
    ...: from iofree import schema
