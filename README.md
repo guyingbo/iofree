@@ -63,6 +63,8 @@ and also:
 * LengthPrefixedObject
 * Switch
 * SizedIntEnum
+* Convert
+* Group
 
 Here is a real life example [definition](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/socks5.py) of socks5 client request, you can see the following code snippet:
 

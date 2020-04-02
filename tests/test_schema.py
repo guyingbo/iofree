@@ -37,3 +37,19 @@ def test_equal():
 
     with pytest.raises(schema.ParseError):
         Content.parse(b"abc\x02abc")
+
+
+def test_group():
+    Group = schema.Group(a=schema.uint8, b=schema.uint32be)
+    check_schema(Group(1, 3))
+    Group2 = schema.Group(a=schema.uint16, b=schema.uint16be)
+    check_schema(Group2(1, 3))
+
+
+def test_group2():
+    class Dynamic(schema.BinarySchema):
+        a = schema.uint8
+        b = schema.Group(c=schema.uint16, d=schema.uint16be)
+
+    dynamic = Dynamic(1, Dynamic.b(2, 3))
+    check_schema(dynamic)
