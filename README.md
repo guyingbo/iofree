@@ -64,6 +64,19 @@ and also:
 * Switch
 * SizedIntEnum
 
+Here is a real life example [definition](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/socks5.py) of socks5 client request, you can see the following code snippet:
+
+```python
+class Socks5ClientRequest(schema.BinarySchema):
+    auth_ver = schema.MustEqual(schema.uint8, 1)
+    username = schema.LengthPrefixedString(schema.uint8)
+    password = schema.LengthPrefixedString(schema.uint8)
+    ver = schema.MustEqual(schema.uint8, 5)
+    cmd = schema.SizedIntEnum(schema.uint8, Cmd)
+    rsv = schema.MustEqual(schema.uint8, 0)
+    addr = Addr
+```
+
 ## Tutorial 2: customize your struct unit
 
 ```python
