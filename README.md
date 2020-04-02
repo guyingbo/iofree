@@ -81,9 +81,25 @@ A complete socks5 Addr definition: [Link](https://github.com/guyingbo/iofree/blo
 
 ## Built-in units:
 
-commonly used number units: int8 uint8 int16 int16be uint16 uint16be int24 int24be uint24 uint24be int32 int32be uint32 uint32be int64 int64be uint64 uint64be float32 float32be float64 float64be
+commonly used number units:
+* int8 uint8
+* int16 int16be uint16 uint16be
+* int24 int24be uint24 uint24be
+* int32 int32be uint32 uint32be
+* int64 int64be uint64 uint64be
+* float32 float32be float64 float64be
 
-and also: Bytes String MustEqual LengthPrefixedBytes EndWith LengthPrefixedString LengthPrefixedObjectList LengthPrefixedObject Switch Switch
+and also:
+* Bytes
+* String
+* MustEqual
+* LengthPrefixedBytes
+* EndWith
+* LengthPrefixedString
+* LengthPrefixedObjectList
+* LengthPrefixedObject
+* Switch
+* SizedIntEnum
 
 ## Usage Examples:
 
