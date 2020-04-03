@@ -40,7 +40,7 @@ class Parser:
         self._state = State._state_wait
         self._process()
 
-    def parse(self, data: bytes, *, strict: bool = False) -> typing.Any:
+    def parse(self, data: bytes, *, strict: bool = True) -> typing.Any:
         """
         parse bytes
         """

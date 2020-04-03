@@ -88,7 +88,7 @@ def bad_reader():
 
 def test_exception():
     parser = simple.parser()
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(iofree.ParseError):
         parser.send(b"haha")
     with pytest.raises(iofree.NoResult):
         parser.get_result()

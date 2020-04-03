@@ -20,7 +20,7 @@ class Unit(abc.ABC):
     def __call__(self, obj: typing.Any) -> bytes:
         "convert user-given object to bytes"
 
-    def parse(self, data: bytes, *, strict=False):
+    def parse(self, data: bytes, *, strict=True):
         return Parser(self.get_value()).parse(data, strict=strict)
 
 
@@ -107,7 +107,7 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
         return Parser(cls.get_value())
 
     @classmethod
-    def parse(cls, data: bytes, *, strict=False) -> "BinarySchema":
+    def parse(cls, data: bytes, *, strict=True) -> "BinarySchema":
         return cls.get_parser().parse(data, strict=strict)
 
 

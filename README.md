@@ -23,7 +23,7 @@ Using iofree, you can:
 * parse both binary streams and files
 
 
-## Tutorial 1: write a simple parser
+## Tutorial 1: a simple parser
 
 ```python
 >>> from iofree import schema
@@ -31,6 +31,8 @@ Using iofree, you can:
 b'\x01'
 >>> schema.uint32be(3)
 b'\x00\x00\x00\x03'
+>>> schema.uint32be.parse(b'\x00\x00\x00\x03')
+3
 >>> class Simple(schema.BinarySchema):
 ...     a = schema.uint8
 ...     b = schema.uint32be # "be" for big-endian
