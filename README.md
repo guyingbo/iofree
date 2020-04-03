@@ -79,31 +79,43 @@ class Socks5ClientRequest(schema.BinarySchema):
     addr = Addr
 ```
 
-## Tutorial 2: customize your struct unit
+## Tutorial 2: define socks5 address format
 
 ```python
 In [1]: import socket
-   ...: from struct import Struct
    ...: from iofree import schema
-   ...: from iofree import read_raw_struct
    ...:
    ...:
-   ...: class IPv4(schema.Unit):
-   ...:     def __init__(self):
-   ...:         self._struct = Struct("4s")
+   ...: class Addr(schema.BinarySchema):
+   ...:     atyp: int = schema.uint8
+   ...:     host: str = schema.Switch(
+   ...:         "atyp",
+   ...:         {
+   ...:             1: schema.Convert(
+   ...:                 schema.Bytes(4), encode=socket.inet_aton, decode=socket.inet_ntoa
    ...:
-   ...:     def get_value(self):
-   ...:         (result,) = yield from read_raw_struct(self._struct)
-   ...:         return socket.inet_ntoa(result)
-   ...:
-   ...:     def __call__(self, obj: str) -> bytes:
-   ...:         return self._struct.pack(socket.inet_aton(obj))
+   ...:             ),
+   ...:             4: schema.Convert(
+   ...:                 schema.Bytes(16),
+   ...:                 encode=lambda x: socket.inet_pton(socket.AF_INET6, x),
+   ...:                 decode=lambda x: socket.inet_ntop(socket.AF_INET6, x),
+   ...:             ),
+   ...:             3: schema.LengthPrefixedString(schema.uint8),
+   ...:         },
+   ...:     )
+   ...:     port: int = schema.uint16be
    ...:
 
-In [2]: ipv4 = IPv4()
+In [2]: addr = Addr(1, '172.16.1.20', 80)
 
-In [3]: ipv4('192.168.0.1')
-Out[3]: b'\xc0\xa8\x00\x01'
+In [3]: addr
+Out[3]: <Addr(atyp=1, host='172.16.1.20', port=80)>
+
+In [4]: addr.binary
+Out[4]: b'\x01\xac\x10\x01\x14\x00P'
+
+In [5]: Addr.parse(addr.binary)
+Out[5]: <Addr(atyp=1, host='172.16.1.20', port=80)>
 ```
 
 A complete socks5 Addr [definition](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/common.py)
