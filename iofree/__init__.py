@@ -112,7 +112,9 @@ class Parser:
                 return
             except Exception:
                 self._state = State._state_end
-                raise
+                raise ParseError(
+                    f"on value {self._next_value!r}"
+                )
             else:
                 if not isinstance(trap, Traps):
                     self._state = State._state_end

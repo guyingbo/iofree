@@ -90,7 +90,6 @@ def test_exception():
     parser = simple.parser()
     with pytest.raises(Exception) as exc_info:
         parser.send(b"haha")
-    assert exc_info.value.args[0] == "special"
     with pytest.raises(iofree.NoResult):
         parser.get_result()
 
