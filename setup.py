@@ -1,7 +1,4 @@
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from setuptools import setup, find_namespace_packages
 import os.path
 import re
 
@@ -36,7 +33,7 @@ setup(
     maintainer="Yingbo Gu",
     maintainer_email="tensiongyb@gmail.com",
     url="https://github.com/guyingbo/iofree",
-    packages=["iofree"],
+    packages=find_namespace_packages(include=["iofree*"]),
     python_requires=">=3.6",
     classifiers=[
         "License :: OSI Approved :: MIT License",
