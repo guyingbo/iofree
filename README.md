@@ -52,15 +52,17 @@ commonly used number units:
 * int64 int64be uint64 uint64be
 * float32 float32be float64 float64be
 
-and also:
+simple units:
 * Bytes
 * String
-* MustEqual
 * EndWith
+
+composite units:
 * LengthPrefixedBytes
 * LengthPrefixedString
 * LengthPrefixedObjectList
 * LengthPrefixedObject
+* MustEqual
 * Switch
 * SizedIntEnum
 * Convert

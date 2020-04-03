@@ -4,13 +4,10 @@ import warnings
 from struct import Struct
 from enum import IntEnum, auto
 from collections import deque
+from .exceptions import NoResult, ParseError
 
 __version__ = "0.2.0"
 _wait = object()
-
-
-class NoResult(Exception):
-    ""
 
 
 class Traps(IntEnum):
@@ -43,11 +40,13 @@ class Parser:
         self._state = State._state_wait
         self._process()
 
-    def parse(self, data: bytes) -> typing.Any:
+    def parse(self, data: bytes, *, strict: bool = False) -> typing.Any:
         """
         parse bytes
         """
         self.send(data)
+        if strict and self.has_more_data():
+            raise ParseError("redundant data left")
         return self.get_result()
 
     def send(self, data: bytes = b"") -> None:
@@ -71,7 +70,10 @@ class Parser:
 
     def read(self, nbytes: int = 0) -> bytes:
         "backward-compatible for v0.1.x"
-        warnings.warn("backward-compatible for v0.1.x, use read_output instead")
+        warnings.warn(
+            "backward-compatible for v0.1.x, use read_output instead",
+            DeprecationWarning,
+        )
         return self.read_output(nbytes)
 
     @property
@@ -106,7 +108,7 @@ class Parser:
                 trap, *args = self.gen.send(self._next_value)
             except StopIteration as e:
                 self._state = State._state_end
-                self.res_queue.append(e.value)
+                self.set_result(e.value)
                 return
             except Exception:
                 self._state = State._state_end
@@ -162,8 +164,6 @@ class Parser:
 
     def _read_more(self, nbytes: int = 1, from_=None) -> bytes:
         buf = self.input if from_ is None else from_
-        if nbytes <= 0:
-            raise ValueError(f"nbytes must > 0, but got {nbytes}")
         if len(buf) < nbytes:
             return _wait
         data = bytes(buf)
@@ -196,8 +196,6 @@ class Parser:
         return result
 
     def _read_int(self, nbytes: int, byteorder: str = "big", from_=None) -> int:
-        if nbytes <= 0:
-            raise ValueError(f"nbytes must > 0, but got {nbytes}")
         buf = self.input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
@@ -205,8 +203,6 @@ class Parser:
         return int.from_bytes(data, byteorder)
 
     def _peek(self, nbytes: int = 1, from_=None) -> bytes:
-        if nbytes <= 0:
-            raise ValueError(f"nbytes must > 0, but got {nbytes}")
         buf = self.input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
@@ -228,6 +224,8 @@ def read_more(nbytes: int = 1, *, from_=None) -> bytes:
     """
     read *at least* ``nbytes``
     """
+    if nbytes <= 0:
+        raise ValueError(f"nbytes must > 0, but got {nbytes}")
     return (yield (Traps._read_more, nbytes, from_))
 
 
@@ -256,6 +254,8 @@ def read_int(nbytes: int, *, byteorder: str = "big", from_=None) -> int:
     """
     read some bytes as integer
     """
+    if nbytes <= 0:
+        raise ValueError(f"nbytes must > 0, but got {nbytes}")
     return (yield (Traps._read_int, nbytes, byteorder, from_))
 
 
@@ -277,6 +277,8 @@ def peek(nbytes: int = 1, *, from_=None) -> bytes:
     """
     peek many bytes without taking them away from buffer
     """
+    if nbytes <= 0:
+        raise ValueError(f"nbytes must > 0, but got {nbytes}")
     return (yield (Traps._peek, nbytes, from_))
 
 

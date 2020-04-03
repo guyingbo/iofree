@@ -4,14 +4,11 @@ import struct
 import typing
 from struct import Struct
 from collections import deque
+from .exceptions import ParseError
 from . import read_raw_struct, read, read_until, read_struct, Parser, get_parser, wait
 
 _parent_stack = deque()
 _mapping_stack = deque()
-
-
-class ParseError(Exception):
-    ""
 
 
 class Unit(abc.ABC):
@@ -22,6 +19,9 @@ class Unit(abc.ABC):
     @abc.abstractmethod
     def __call__(self, obj: typing.Any) -> bytes:
         "convert user-given object to bytes"
+
+    def parse(self, data: bytes, *, strict=False):
+        return Parser(self.get_value()).parse(data, strict=strict)
 
 
 class BinarySchemaMetaclass(type):
@@ -107,8 +107,8 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
         return Parser(cls.get_value())
 
     @classmethod
-    def parse(cls, data: bytes) -> "BinarySchema":
-        return cls.get_parser().parse(data)
+    def parse(cls, data: bytes, *, strict=False) -> "BinarySchema":
+        return cls.get_parser().parse(data, strict=strict)
 
 
 FieldType = typing.Union[BinarySchemaMetaclass, Unit]

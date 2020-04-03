@@ -10,6 +10,12 @@ def check_schema(schema):
     assert schema == schema2
 
 
+def test_number():
+    assert schema.uint16be.parse(b"\x00\x03") == 3
+    with pytest.raises(schema.ParseError):
+        schema.uint8.parse(b"\x03\x04", strict=True)
+
+
 def test_basic():
     class Content(schema.BinarySchema):
         first_line = schema.EndWith(b"\r\n")

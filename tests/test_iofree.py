@@ -50,7 +50,8 @@ def test_http_parser():
         parser.send(data)
     parser.send()
     parser.read_output(1) == b"a"
-    parser.read_output() == b"bc"
+    with pytest.warns(DeprecationWarning):
+        parser.read() == b"bc"
     assert parser.has_result
     headers = parser.get_result()
     assert len(headers) == 6
@@ -74,6 +75,13 @@ def simple():
 
 @iofree.parser
 def bad_reader():
+    with pytest.raises(ValueError):
+        yield from iofree.read_more(-1)
+    with pytest.raises(ValueError):
+        yield from iofree.peek(-1)
+    with pytest.raises(ValueError):
+        yield from iofree.read_int(-1)
+
     yield from iofree.wait()
     yield "bad"
 
