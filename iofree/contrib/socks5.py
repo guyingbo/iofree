@@ -1,3 +1,30 @@
+# references:
+# rfc1928(socks5): https://www.ietf.org/rfc/rfc1928.txt
+# asyncio-socks5 https://github.com/RobberPhex/asyncio-socks5
+# handshake                         server selection
+# +----+----------+----------+      +----+--------+
+# |VER | NMETHODS | METHODS  |      |VER | METHOD |
+# +----+----------+----------+      +----+--------+
+# | 1  |    1     | 1 to 255 |      | 1  |   1    |
+# +----+----------+----------+      +----+--------+
+# request
+# +----+-----+-------+------+----------+----------+
+# |VER | CMD |  RSV  | ATYP | DST.ADDR | DST.PORT |
+# +----+-----+-------+------+----------+----------+
+# | 1  |  1  | X'00' |  1   | Variable |    2     |
+# +----+-----+-------+------+----------+----------+
+# reply
+# +----+-----+-------+------+----------+----------+
+# |VER | REP |  RSV  | ATYP | BND.ADDR | BND.PORT |
+# +----+-----+-------+------+----------+----------+
+# | 1  |  1  | X'00' |  1   | Variable |    2     |
+# +----+-----+-------+------+----------+----------+
+# udp relay request and reply
+# +----+------+------+----------+----------+----------+
+# |RSV | FRAG | ATYP | DST.ADDR | DST.PORT |   DATA   |
+# +----+------+------+----------+----------+----------+
+# | 2  |  1   |  1   | Variable |    2     | Variable |
+# +----+------+------+----------+----------+----------+
 import enum
 from .. import schema
 from .common import Addr
@@ -28,34 +55,39 @@ class Rep(enum.IntEnum):
     address_type_not_supported = 8
 
 
-class Socks5Handshake(schema.BinarySchema):
+class Handshake(schema.BinarySchema):
     ver = schema.MustEqual(schema.uint8, 5)
-    methods = schema.LengthPrefixedBytes(schema.uint8)
+    methods = schema.LengthPrefixedObjectList(
+        schema.uint8, schema.SizedIntEnum(schema.uint8, AuthMethod)
+    )
 
 
-class Socks5ClientRequest(schema.BinarySchema):
+class ServerSelection(schema.BinarySchema):
+    ver = schema.MustEqual(schema.uint8, 5)
+    method = schema.SizedIntEnum(schema.uint8, AuthMethod)
+
+
+class UsernameAuth(schema.BinarySchema):
     auth_ver = schema.MustEqual(schema.uint8, 1)
     username = schema.LengthPrefixedString(schema.uint8)
     password = schema.LengthPrefixedString(schema.uint8)
+
+
+class ClientRequest(schema.BinarySchema):
     ver = schema.MustEqual(schema.uint8, 5)
     cmd = schema.SizedIntEnum(schema.uint8, Cmd)
     rsv = schema.MustEqual(schema.uint8, 0)
     addr = Addr
 
 
-class Socks5Reply(schema.BinarySchema):
+class Reply(schema.BinarySchema):
     ver = schema.MustEqual(schema.uint8, 5)
     rep = schema.SizedIntEnum(schema.uint8, Rep)
     rsv = schema.MustEqual(schema.uint8, 0)
     bind_addr = Addr
 
 
-class Socks5ServerSelection(schema.BinarySchema):
-    ver = schema.MustEqual(schema.uint8, 5)
-    method = schema.SizedIntEnum(schema.uint8, AuthMethod)
-
-
-class Socks5UDPRelay(schema.BinarySchema):
+class UDPRelay(schema.BinarySchema):
     rsv = schema.MustEqual(schema.Bytes(2), b"\x00\x00")
     flag = schema.uint8
     addr = Addr

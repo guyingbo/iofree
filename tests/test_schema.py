@@ -16,6 +16,11 @@ def test_number():
         schema.uint8.parse(b"\x03\x04", strict=True)
 
 
+def test_length_prefixed_bytes():
+    some_bytes = schema.LengthPrefixedBytes(schema.uint8)
+    str(some_bytes)
+
+
 def test_basic():
     class Content(schema.BinarySchema):
         first_line = schema.EndWith(b"\r\n")
