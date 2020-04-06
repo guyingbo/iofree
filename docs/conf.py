@@ -12,6 +12,7 @@
 #
 # import os
 # import sys
+# sys.path.insert(0, '/Users/mac/Projects/iofree/iofree')
 
 
 # -- Project information -----------------------------------------------------
