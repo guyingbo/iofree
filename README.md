@@ -1,6 +1,7 @@
 # iofree
 
 [![Build Status](https://travis-ci.org/guyingbo/iofree.svg?branch=master)](https://travis-ci.org/guyingbo/iofree)
+[![Documentation Status](https://readthedocs.org/projects/iofree/badge/?version=latest)](https://iofree.readthedocs.io/en/latest/?badge=latest)
 [![Python Version](https://img.shields.io/pypi/pyversions/iofree.svg)](https://pypi.python.org/pypi/iofree)
 [![Version](https://img.shields.io/pypi/v/iofree.svg)](https://pypi.python.org/pypi/iofree)
 [![Format](https://img.shields.io/pypi/format/iofree.svg)](https://pypi.python.org/pypi/iofree)
@@ -129,6 +130,10 @@ A complete socks5 Addr [definition](https://github.com/guyingbo/iofree/blob/mast
 * [socks5 parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/socks/parser.py)
 * [simple http parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/http/parser.py)
 * TLS1.3 [models](https://github.com/guyingbo/tls1.3/blob/master/tls/models.py) and [parser](https://github.com/guyingbo/tls1.3/blob/0e329c44152bd31859668b929a0836eea439d07c/tls/session.py#L227)
+
+## API documents
+
+[API docs](https://iofree.readthedocs.io/en/latest/index.html)
 
 ## References
 
