@@ -237,7 +237,7 @@ class Parser:
 
 def read(nbytes: int = 0, *, from_=None) -> bytes:
     """
-    if nbytes = 0, read as many as it can, empty bytes is valid;
+    if nbytes = 0, read as many as possible, empty bytes is valid;
     if nbytes > 0, read *exactly* ``nbytes``
     """
     return (yield (Traps._read, nbytes, from_))

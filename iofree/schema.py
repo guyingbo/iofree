@@ -236,17 +236,17 @@ class MustEqual(Unit):
 
 
 class EndWith(Unit):
-    def __init__(self, _bytes):
-        self._bytes = _bytes
+    def __init__(self, bytes_):
+        self.bytes_ = bytes_
 
     def __str__(self):
-        return f"{self.__class__.__name__}({self._bytes})"
+        return f"{self.__class__.__name__}({self.bytes_})"
 
     def get_value(self):
-        return (yield from read_until(self._bytes, return_tail=False))
+        return (yield from read_until(self.bytes_, return_tail=False))
 
     def __call__(self, obj: bytes) -> bytes:
-        return obj + self._bytes
+        return obj + self.bytes_
 
 
 class LengthPrefixedBytes(Unit):
