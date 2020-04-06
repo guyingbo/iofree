@@ -12,6 +12,9 @@ _mapping_stack = deque()
 
 
 class Unit(abc.ABC):
+    """Unit is the base class of all units. \
+    If you can build your own unit class, you must inherit from it"""
+
     @abc.abstractmethod
     def get_value(self) -> typing.Generator:
         "get object you want from bytes"
@@ -21,6 +24,7 @@ class Unit(abc.ABC):
         "convert user-given object to bytes"
 
     def parse(self, data: bytes, *, strict=True):
+        "a convenient function to help you parse fixed bytes"
         return Parser(self.get_value()).parse(data, strict=strict)
 
 
@@ -50,6 +54,8 @@ class BinarySchemaMetaclass(type):
 
 
 class BinarySchema(metaclass=BinarySchemaMetaclass):
+    "The main class for users to define their own binary structures"
+
     def __init__(self, *args):
         if len(args) != len(self.__class__._fields):
             raise ValueError(
@@ -92,6 +98,7 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
 
     @classmethod
     def get_value(cls) -> typing.Generator:
+        "get `BinarySchema` object from bytes"
         mapping = {}
         _mapping_stack.append(mapping)
         try:

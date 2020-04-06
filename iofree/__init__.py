@@ -1,6 +1,7 @@
-"io-free stream parser which helps implementing network protocols the `Sans-IO` way"
+"""`iofree` is an easy-to-use and powerful library \
+to help you implement network protocols and binary parsers."""
 import typing
-import warnings
+from socket import SocketType
 from struct import Struct
 from enum import IntEnum, auto
 from collections import deque
@@ -33,6 +34,7 @@ class Parser:
         self.gen = gen
         self.input = bytearray()
         self.output = bytearray()
+        self.events = deque()
         self.res_queue = deque()
         self._next_value = None
         self._last_trap = None
@@ -56,7 +58,7 @@ class Parser:
         self.input.extend(data)
         self._process()
 
-    def read_output(self, nbytes: int = 0) -> bytes:
+    def read(self, nbytes: int = 0) -> bytes:
         """
         read *at most* ``nbytes``
         """
@@ -68,13 +70,34 @@ class Parser:
         del self.output[:nbytes]
         return data
 
-    def read(self, nbytes: int = 0) -> bytes:
-        "backward-compatible for v0.1.x"
-        warnings.warn(
-            "backward-compatible for v0.1.x, use read_output instead",
-            DeprecationWarning,
-        )
-        return self.read_output(nbytes)
+    def respond(
+        self,
+        *,
+        data: bytes = b"",
+        close: bool = False,
+        exc: typing.Optional[Exception] = None,
+        result: typing.Any = None,
+    ) -> None:
+        self.events.append((data, close, exc, result))
+
+    def run(self, sock: SocketType):
+        "reference implementation of how to deal with socket"
+        self.send(b"")
+        while True:
+            while self.events:
+                data, close, exc, result = self.events.popleft()
+                if data:
+                    sock.sendall(data)
+                if close:
+                    sock.close()
+                if exc:
+                    raise exc
+                if result is not None:
+                    return result
+            data = sock.recv(1024)
+            if not data:
+                raise ParseError("need data")
+            self.send(data)
 
     @property
     def has_result(self) -> bool:
@@ -112,9 +135,7 @@ class Parser:
                 return
             except Exception:
                 self._state = State._state_end
-                raise ParseError(
-                    f"on value {self._next_value!r}"
-                )
+                raise ParseError(f"{self._next_value!r}")
             else:
                 if not isinstance(trap, Traps):
                     self._state = State._state_end
