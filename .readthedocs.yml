@@ -3,8 +3,10 @@ sphinx:
   configuration: docs/conf.py
 formats: all
 python:
-   version: 3.7
-   install:
-      - method: setuptools
-        path: .
-   system_packages: true
+  version: 3.7
+  install:
+    - method: pip
+      path: Sphinx==3.0.0
+    - method: setuptools
+      path: .
+  system_packages: true
