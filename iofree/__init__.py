@@ -78,6 +78,12 @@ class Parser:
         exc: typing.Optional[Exception] = None,
         result: typing.Any = None,
     ) -> None:
+        """produce some event data to interact with a stream:
+        data:   bytes to send to the peer
+        close:  whether the socket should be closed
+        exc:    raise an exception to break the loop
+        result: result to return
+        """
         self.events.append((data, close, exc, result))
 
     def run(self, sock: SocketType):
@@ -158,6 +164,7 @@ class Parser:
         return self._read(0)
 
     def has_more_data(self) -> bool:
+        "indicate whether input has some bytes left"
         return len(self.input) > 0
 
     def write(self, data: bytes) -> None:
@@ -218,12 +225,14 @@ class Parser:
         del buf[:size]
         return result
 
-    def _read_int(self, nbytes: int, byteorder: str = "big", from_=None) -> int:
+    def _read_int(
+        self, nbytes: int, byteorder: str = "big", signed=False, from_=None
+    ) -> int:
         buf = self.input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
         data = self._read(nbytes)
-        return int.from_bytes(data, byteorder)
+        return int.from_bytes(data, byteorder, signed=signed)
 
     def _peek(self, nbytes: int = 1, from_=None) -> bytes:
         buf = self.input if from_ is None else from_
@@ -273,13 +282,13 @@ def read_raw_struct(struct_obj: Struct, *, from_=None) -> tuple:
     return (yield (Traps._read_struct, struct_obj, from_))
 
 
-def read_int(nbytes: int, *, byteorder: str = "big", from_=None) -> int:
+def read_int(nbytes: int, byteorder: str = "big", *, signed=False, from_=None) -> int:
     """
     read some bytes as integer
     """
     if nbytes <= 0:
         raise ValueError(f"nbytes must > 0, but got {nbytes}")
-    return (yield (Traps._read_int, nbytes, byteorder, from_))
+    return (yield (Traps._read_int, nbytes, byteorder, signed, from_))
 
 
 def write(data: bytes) -> None:
@@ -306,10 +315,13 @@ def peek(nbytes: int = 1, *, from_=None) -> bytes:
 
 
 def get_parser() -> Parser:
+    "get current parser object"
     return (yield (Traps._get_parser,))
 
 
 def parser(generator_func: typing.Generator) -> typing.Generator:
+    "decorator function to wrap a generator"
+
     def create_parser(*args, **kwargs) -> Parser:
         return Parser(generator_func(*args, **kwargs))
 

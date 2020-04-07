@@ -5,7 +5,16 @@ import typing
 from struct import Struct
 from collections import deque
 from .exceptions import ParseError
-from . import read_raw_struct, read, read_until, read_struct, Parser, get_parser, wait
+from . import (
+    read_raw_struct,
+    read,
+    read_until,
+    read_struct,
+    Parser,
+    get_parser,
+    wait,
+    read_int,
+)
 
 _parent_stack = deque()
 _mapping_stack = deque()
@@ -142,8 +151,11 @@ class IntUnit(Unit):
         self.signed = signed
 
     def get_value(self):
-        a = yield from read(self.length)
-        return int.from_bytes(a, self.byteorder, signed=self.signed)
+        return (
+            yield from read_int(
+                self.length, byteorder=self.byteorder, signed=self.signed
+            )
+        )
 
     def __call__(self, obj: int) -> bytes:
         return obj.to_bytes(self.length, self.byteorder, signed=self.signed)
