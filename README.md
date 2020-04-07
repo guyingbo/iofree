@@ -23,8 +23,9 @@ Using iofree, you can:
 * define network protocols and file format in a clear and precise manner
 * parse both binary streams and files
 
+## Documentation
 
-## Tutorial 1: a simple parser
+### Basic Usage
 
 ```python
 >>> from iofree import schema
@@ -34,6 +35,11 @@ b'\x01'
 b'\x00\x00\x00\x03'
 >>> schema.uint32be.parse(b'\x00\x00\x00\x03')
 3
+```
+
+### Tutorial 1: a simple parser
+
+```python
 >>> class Simple(schema.BinarySchema):
 ...     a = schema.uint8
 ...     b = schema.uint32be # "be" for big-endian
@@ -45,7 +51,7 @@ b'\x01\x00\x00\x00\x03'
 <Simple(a=1, b=3)>
 ```
 
-## Built-in units:
+### Built-in units:
 
 commonly used number units:
 * int8 uint8
@@ -71,6 +77,8 @@ composite units:
 * Convert
 * Group
 
+[API docs](https://iofree.readthedocs.io/en/latest/index.html)
+
 Here is a real life example [definition](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/socks5.py) of socks5 client request, you can see the following code snippet:
 
 ```python
@@ -81,7 +89,7 @@ class Socks5ClientRequest(schema.BinarySchema):
     addr = Addr
 ```
 
-## Tutorial 2: define socks5 address format
+### Tutorial 2: define socks5 address format
 
 ```python
 In [1]: import socket
@@ -130,10 +138,6 @@ A complete socks5 Addr [definition](https://github.com/guyingbo/iofree/blob/mast
 * [socks5 parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/socks/parser.py)
 * [simple http parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/http/parser.py)
 * TLS1.3 [models](https://github.com/guyingbo/tls1.3/blob/master/tls/models.py) and [parser](https://github.com/guyingbo/tls1.3/blob/0e329c44152bd31859668b929a0836eea439d07c/tls/session.py#L227)
-
-## API documents
-
-[API docs](https://iofree.readthedocs.io/en/latest/index.html)
 
 ## References
 
