@@ -132,12 +132,11 @@ A complete socks5 Addr [definition](https://github.com/guyingbo/iofree/blob/mast
 
 ## Usage Examples:
 
+* [socks5 models](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/socks5.py) and [socks5 parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/protocols/socks5.py)
 * [shadowsocks parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/shadowsocks/parser.py)
 * [shadowsocks aead parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/aead/parser.py)
-* [socks5 models](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/socks5.py)
-* [socks5 parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/socks/parser.py)
 * [simple http parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/http/parser.py)
-* TLS1.3 [models](https://github.com/guyingbo/tls1.3/blob/master/tls/models.py) and [parser](https://github.com/guyingbo/tls1.3/blob/0e329c44152bd31859668b929a0836eea439d07c/tls/session.py#L227)
+* TLS1.3 [models](https://github.com/guyingbo/tls1.3/blob/master/tls/models.py) and [parser](https://github.com/guyingbo/tls1.3/blob/master/tls/session.py)
 
 ## References
 
