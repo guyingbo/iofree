@@ -1,7 +1,7 @@
 # references:
-# rfc1928(socks5): https://www.ietf.org/rfc/rfc1928.txt
-# rfc1929(): https://tools.ietf.org/html/rfc1929
-# asyncio-socks5 https://github.com/RobberPhex/asyncio-socks5
+# rfc1928(SOCKS Protocol Version 5): https://www.ietf.org/rfc/rfc1928.txt
+# rfc1929(Username/Password Authentication for SOCKS V5):
+# https://tools.ietf.org/html/rfc1929
 # handshake                                   server selection
 # +----+----------+----------+                +----+--------+
 # |VER | NMETHODS | METHODS  |                |VER | METHOD |
