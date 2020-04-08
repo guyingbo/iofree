@@ -9,6 +9,7 @@ from .exceptions import NoResult, ParseError
 
 __version__ = "0.2.2"
 _wait = object()
+_no_result = object()
 
 
 class Traps(IntEnum):
@@ -76,7 +77,7 @@ class Parser:
         data: bytes = b"",
         close: bool = False,
         exc: typing.Optional[Exception] = None,
-        result: typing.Any = None,
+        result: typing.Any = _no_result,
     ) -> None:
         """produce some event data to interact with a stream:
         data:   bytes to send to the peer
@@ -98,7 +99,7 @@ class Parser:
                     sock.close()
                 if exc:
                     raise exc
-                if result is not None:
+                if result is not _no_result:
                     return result
             data = sock.recv(1024)
             if not data:

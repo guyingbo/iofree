@@ -73,6 +73,11 @@ class UsernameAuth(schema.BinarySchema):
     password = schema.LengthPrefixedString(schema.uint8)
 
 
+class UsernameAuthReply(schema.BinarySchema):
+    auth_ver = schema.MustEqual(schema.uint8, 1)
+    status = schema.MustEqual(schema.uint8, 0)
+
+
 class ClientRequest(schema.BinarySchema):
     ver = schema.MustEqual(schema.uint8, 5)
     cmd = schema.SizedIntEnum(schema.uint8, Cmd)
