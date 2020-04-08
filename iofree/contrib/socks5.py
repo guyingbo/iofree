@@ -1,12 +1,19 @@
 # references:
 # rfc1928(socks5): https://www.ietf.org/rfc/rfc1928.txt
+# rfc1929(): https://tools.ietf.org/html/rfc1929
 # asyncio-socks5 https://github.com/RobberPhex/asyncio-socks5
-# handshake                         server selection
-# +----+----------+----------+      +----+--------+
-# |VER | NMETHODS | METHODS  |      |VER | METHOD |
-# +----+----------+----------+      +----+--------+
-# | 1  |    1     | 1 to 255 |      | 1  |   1    |
-# +----+----------+----------+      +----+--------+
+# handshake                                   server selection
+# +----+----------+----------+                +----+--------+
+# |VER | NMETHODS | METHODS  |                |VER | METHOD |
+# +----+----------+----------+                +----+--------+
+# | 1  |    1     | 1 to 255 |                | 1  |   1    |
+# +----+----------+----------+                +----+--------+
+# Username/Password Authentication            auth reply
+# +----+------+----------+------+----------+  +----+--------+
+# |VER | ULEN |  UNAME   | PLEN |  PASSWD  |  |VER | STATUS |
+# +----+------+----------+------+----------+  +----+--------+
+# | 1  |  1   | 1 to 255 |  1   | 1 to 255 |  | 1  |   1    |
+# +----+------+----------+------+----------+  +----+--------+
 # request
 # +----+-----+-------+------+----------+----------+
 # |VER | CMD |  RSV  | ATYP | DST.ADDR | DST.PORT |
