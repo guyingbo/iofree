@@ -68,11 +68,11 @@ class ParserChain:
 class Parser:
     def __init__(self, gen: typing.Generator):
         self.gen = gen
-        self.input = bytearray()
-        self.output = bytearray()
-        self.input_events = deque()
-        self._events = deque()
-        self.res_queue = deque()
+        self._input = bytearray()
+        self._output = bytearray()
+        self._input_events = deque()
+        self._output_events = deque()
+        self._res_queue = deque()
         self._mapping_stack = deque()
         self._next_value = None
         self._last_trap = None
@@ -87,8 +87,8 @@ class Parser:
         return self
 
     def __next__(self):
-        if self._events:
-            return self._events.popleft()
+        if self._output_events:
+            return self._output_events.popleft()
         raise StopIteration
 
     def parse(self, data: bytes, *, strict: bool = True) -> typing.Any:
@@ -104,19 +104,19 @@ class Parser:
         """
         send data for parsing
         """
-        self.input.extend(data)
+        self._input.extend(data)
         self._process()
 
     def read(self, nbytes: int = 0) -> bytes:
         """
         read *at most* ``nbytes``
         """
-        if nbytes == 0 or len(self.output) <= nbytes:
-            data = bytes(self.output)
-            del self.output[:]
+        if nbytes == 0 or len(self._output) <= nbytes:
+            data = bytes(self._output)
+            del self._output[:]
             return data
-        data = bytes(self.output[:nbytes])
-        del self.output[:nbytes]
+        data = bytes(self._output[:nbytes])
+        del self._output[:nbytes]
         return data
 
     def respond(
@@ -133,7 +133,7 @@ class Parser:
         exc:    raise an exception to break the loop
         result: result to return
         """
-        self._events.append((data, close, exc, result))
+        self._output_events.append((data, close, exc, result))
 
     def run(self, sock: SocketType):
         "reference implementation of how to deal with socket"
@@ -155,7 +155,7 @@ class Parser:
 
     @property
     def has_result(self) -> bool:
-        return len(self.res_queue) > 0
+        return len(self._res_queue) > 0
 
     def get_result(self):
         """
@@ -164,10 +164,10 @@ class Parser:
         self._process()
         if not self.has_result:
             raise NoResult("no result")
-        return self.res_queue.popleft()
+        return self._res_queue.popleft()
 
     def set_result(self, result):
-        self.res_queue.append(result)
+        self._res_queue.append(result)
         self.respond(result=result)
 
     def finished(self) -> bool:
@@ -215,21 +215,21 @@ class Parser:
 
     def has_more_data(self) -> bool:
         "indicate whether input has some bytes left"
-        return len(self.input) > 0
+        return len(self._input) > 0
 
     def write(self, data: bytes) -> None:
-        self.output.extend(data)
+        self._output.extend(data)
 
     def _write(self, data: bytes) -> None:
-        self.output.extend(data)
+        self._output.extend(data)
 
     def send_event(self, event: typing.Any) -> None:
-        self.input_events.append(event)
+        self._input_events.append(event)
         self._process()
 
     def _wait_event(self):
-        if self.input_events:
-            return self.input_events.popleft()
+        if self._input_events:
+            return self._input_events.popleft()
         return _wait
 
     def _wait(self) -> None:
@@ -240,7 +240,7 @@ class Parser:
         return
 
     def _read(self, nbytes: int = 0, from_=None) -> bytes:
-        buf = self.input if from_ is None else from_
+        buf = self._input if from_ is None else from_
         if nbytes == 0:
             data = bytes(buf)
             del buf[:]
@@ -252,7 +252,7 @@ class Parser:
         return data
 
     def _read_more(self, nbytes: int = 1, from_=None) -> bytes:
-        buf = self.input if from_ is None else from_
+        buf = self._input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
         data = bytes(buf)
@@ -260,7 +260,7 @@ class Parser:
         return data
 
     def _read_until(self, data: bytes, return_tail: bool = True, from_=None) -> bytes:
-        buf = self.input if from_ is None else from_
+        buf = self._input if from_ is None else from_
         index = buf.find(data, self._pos)
         if index == -1:
             self._pos = len(buf) - len(data) + 1
@@ -276,7 +276,7 @@ class Parser:
         return data
 
     def _read_struct(self, struct_obj: Struct, from_=None) -> tuple:
-        buf = self.input if from_ is None else from_
+        buf = self._input if from_ is None else from_
         size = struct_obj.size
         if len(buf) < size:
             return _wait
@@ -287,14 +287,14 @@ class Parser:
     def _read_int(
         self, nbytes: int, byteorder: str = "big", signed=False, from_=None
     ) -> int:
-        buf = self.input if from_ is None else from_
+        buf = self._input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
         data = self._read(nbytes)
         return int.from_bytes(data, byteorder, signed=signed)
 
     def _peek(self, nbytes: int = 1, from_=None) -> bytes:
-        buf = self.input if from_ is None else from_
+        buf = self._input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
         return bytes(buf[:nbytes])
