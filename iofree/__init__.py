@@ -1,5 +1,6 @@
 """`iofree` is an easy-to-use and powerful library \
 to help you implement network protocols and binary parsers."""
+import sys
 import typing
 from socket import SocketType
 from struct import Struct
@@ -21,6 +22,7 @@ class Traps(IntEnum):
     _write = auto()
     _wait = auto()
     _peek = auto()
+    _wait_event = auto()
     _get_parser = auto()
 
 
@@ -30,18 +32,64 @@ class State(IntEnum):
     _state_end = auto()
 
 
+class LinkedNode:
+    __slots__ = ("parser", "next")
+
+    def __init__(self, parser, next_):
+        self.parser = parser
+        self.next = next_
+
+
+class ParserChain:
+    def __init__(self, *parsers):
+        nxt = None
+        for parser in reversed(parsers):
+            node = LinkedNode(parser, nxt)
+            nxt = node
+        self.first = node
+
+    def send(self, data):
+        self.first.parser.send(data)
+
+    def __iter__(self):
+        return self._get_events(self.first)
+
+    def _get_events(self, node):
+        for data, close, exc, result in node.parser:
+            if result is not _no_result and node.next:
+                node.next.parser.send(result)
+                yield (data, close, exc, _no_result)
+            else:
+                yield (data, close, exc, result)
+        if node.next:
+            yield from self._get_events(node.next)
+
+
 class Parser:
     def __init__(self, gen: typing.Generator):
         self.gen = gen
         self.input = bytearray()
         self.output = bytearray()
-        self.events = deque()
+        self.input_events = deque()
+        self._events = deque()
         self.res_queue = deque()
+        self._mapping_stack = deque()
         self._next_value = None
         self._last_trap = None
         self._pos = 0
         self._state = State._state_wait
         self._process()
+
+    def __repr__(self):
+        return f"<{self.__class__.__qualname__}({self.gen})>"
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._events:
+            return self._events.popleft()
+        raise StopIteration
 
     def parse(self, data: bytes, *, strict: bool = True) -> typing.Any:
         """
@@ -85,16 +133,15 @@ class Parser:
         exc:    raise an exception to break the loop
         result: result to return
         """
-        self.events.append((data, close, exc, result))
+        self._events.append((data, close, exc, result))
 
     def run(self, sock: SocketType):
         "reference implementation of how to deal with socket"
         self.send(b"")
         while True:
-            while self.events:
-                data, close, exc, result = self.events.popleft()
-                if data:
-                    sock.sendall(data)
+            for to_send, close, exc, result in self:
+                if to_send:
+                    sock.sendall(to_send)
                 if close:
                     sock.close()
                 if exc:
@@ -121,6 +168,7 @@ class Parser:
 
     def set_result(self, result):
         self.res_queue.append(result)
+        self.respond(result=result)
 
     def finished(self) -> bool:
         return self._state is State._state_end
@@ -142,7 +190,8 @@ class Parser:
                 return
             except Exception:
                 self._state = State._state_end
-                raise ParseError(f"{self._next_value!r}")
+                tb = sys.exc_info()[2]
+                raise ParseError(f"{self._next_value!r}").with_traceback(tb)
             else:
                 if not isinstance(trap, Traps):
                     self._state = State._state_end
@@ -173,6 +222,15 @@ class Parser:
 
     def _write(self, data: bytes) -> None:
         self.output.extend(data)
+
+    def send_event(self, event: typing.Any) -> None:
+        self.input_events.append(event)
+        self._process()
+
+    def _wait_event(self):
+        if self.input_events:
+            return self.input_events.popleft()
+        return _wait
 
     def _wait(self) -> None:
         if not getattr(self, "_waiting", False):
@@ -313,6 +371,13 @@ def peek(nbytes: int = 1, *, from_=None) -> bytes:
     if nbytes <= 0:
         raise ValueError(f"nbytes must > 0, but got {nbytes}")
     return (yield (Traps._peek, nbytes, from_))
+
+
+def wait_event() -> typing.Any:
+    """
+    wait for an event
+    """
+    return (yield (Traps._wait_event,))
 
 
 def get_parser() -> Parser:

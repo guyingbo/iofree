@@ -51,16 +51,21 @@ def test_equal():
 
 
 def test_group():
-    Group = schema.Group(a=schema.uint8, b=schema.uint32be)
-    check_schema(Group(1, 3))
-    Group2 = schema.Group(a=schema.uint16, b=schema.uint16be)
-    check_schema(Group2(1, 3))
-
-
-def test_group2():
     class Dynamic(schema.BinarySchema):
         a = schema.uint8
-        b = schema.Group(c=schema.uint16, d=schema.uint16be)
+        b = schema.Group(c=schema.uint16, d=schema.uint24be)
 
     dynamic = Dynamic(1, Dynamic.b(2, 3))
+    check_schema(dynamic)
+
+
+def test_schema():
+    G = schema.Group(a=schema.uint8, b=schema.int32)
+    Dynamic = schema.Group(
+        a=schema.LengthPrefixedBytes(schema.uint24be),
+        b=schema.LengthPrefixedObject(schema.uint32, schema.EndWith(b"\n")),
+        c=schema.LengthPrefixedObjectList(schema.uint16, schema.String(3)),
+        d=schema.LengthPrefixedObjectList(schema.uint64, G),
+    )
+    dynamic = Dynamic(b"abc", b"def", ["123", "456"], [G(3, 5), G(6, 10)])
     check_schema(dynamic)

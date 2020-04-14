@@ -17,12 +17,14 @@ from . import (
 )
 
 _parent_stack = deque()
-_mapping_stack = deque()
 
 
 class Unit(abc.ABC):
     """Unit is the base class of all units. \
     If you can build your own unit class, you must inherit from it"""
+
+    def __iter__(self):
+        return self.get_value()
 
     @abc.abstractmethod
     def get_value(self) -> typing.Generator:
@@ -61,6 +63,9 @@ class BinarySchemaMetaclass(type):
         s = ", ".join(sl)
         return f"{cls.__name__}({s})"
 
+    def __iter__(cls):
+        return cls.get_value()
+
 
 class BinarySchema(metaclass=BinarySchemaMetaclass):
     "The main class for users to define their own binary structures"
@@ -71,20 +76,20 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
                 f"need {len(self.__class__._fields)} args, got {len(args)}"
             )
         _parent_stack.append(self)
-
-        self.bins = {}
-        for arg, (name, field) in zip(args, self.__class__._fields.items()):
-            if isinstance(field, BinarySchemaMetaclass):
-                binary = arg.binary
-            elif isinstance(field, Unit):
-                binary = field(arg)
-            if arg is ...:
-                arg = field.get_default()
-            setattr(self, name, arg)
-            self.bins[name] = binary
-        self.binary = b"".join(self.bins.values())
-
-        _parent_stack.pop()
+        try:
+            self.bins = {}
+            for arg, (name, field) in zip(args, self.__class__._fields.items()):
+                if isinstance(field, BinarySchemaMetaclass):
+                    binary = arg.binary
+                elif isinstance(field, Unit):
+                    binary = field(arg)
+                if arg is ...:
+                    arg = field.get_default()
+                setattr(self, name, arg)
+                self.bins[name] = binary
+            self.binary = b"".join(self.bins.values())
+        finally:
+            _parent_stack.pop()
 
     def __str__(self):
         sl = []
@@ -109,13 +114,15 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
     def get_value(cls) -> typing.Generator:
         "get `BinarySchema` object from bytes"
         mapping = {}
-        _mapping_stack.append(mapping)
+        parser = yield from get_parser()
+        parser._mapping_stack.append(mapping)
         try:
             for name, field in cls._fields.items():
                 mapping[name] = yield from field.get_value()
         except Exception:
             raise ParseError(mapping)
-        _mapping_stack.pop()
+        finally:
+            parser._mapping_stack.pop()
         return cls(*mapping.values())
 
     @classmethod
@@ -207,22 +214,6 @@ class Bytes(Unit):
             return obj
 
 
-class String(Bytes):
-    def __init__(self, length, encoding="utf-8"):
-        super().__init__(length)
-        self.encoding = encoding
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.length})"
-
-    def get_value(self):
-        v, = yield from read_raw_struct(self._struct)
-        return v.decode(self.encoding)
-
-    def __call__(self, obj: str) -> bytes:
-        return super().__call__(obj.encode(self.encoding))
-
-
 class MustEqual(Unit):
     def __init__(self, unit, value):
         self.unit = unit
@@ -275,26 +266,6 @@ class LengthPrefixedBytes(Unit):
     def __call__(self, obj: bytes) -> bytes:
         length = len(obj)
         return self.length_unit(length) + struct.pack(f"{length}s", obj)
-
-
-class LengthPrefixedString(Unit):
-    def __init__(self, length_unit: StructUnit, encoding="utf-8"):
-        self.length_unit = length_unit
-        self.encoding = encoding
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.length_unit}, {self.encoding})"
-
-    def get_value(self):
-        length = yield from self.length_unit.get_value()
-        v, = yield from read_struct(f"{length}s")
-        return v.decode(self.encoding)
-
-    def __call__(self, obj: str) -> bytes:
-        length = len(obj)
-        return self.length_unit(length) + struct.pack(
-            f"{length}s", obj.encode(self.encoding)
-        )
 
 
 class LengthPrefixedObjectList(Unit):
@@ -353,7 +324,8 @@ class Switch(Unit):
         return f"{self.__class__.__name__}({self.ref}, {self.cases})"
 
     def get_value(self):
-        mapping = _mapping_stack[-1]
+        parser = yield from get_parser()
+        mapping = parser._mapping_stack[-1]
         unit = self.cases[mapping[self.ref]]
         return (yield from unit.get_value())
 
@@ -387,12 +359,36 @@ class Convert(Unit):
         self.encode = encode
         self.decode = decode
 
+    def __str__(self):
+        return (
+            f"{self.__class__.__name__}"
+            f"({self.unit}, encode={self.encode}, decode={self.decode})"
+        )
+
     def get_value(self):
         v = yield from self.unit.get_value()
         return self.decode(v)
 
     def __call__(self, obj) -> bytes:
         return self.unit(self.encode(obj))
+
+
+class String(Convert):
+    def __init__(self, length, encoding="utf-8"):
+        super().__init__(
+            Bytes(length),
+            encode=lambda x: x.encode(encoding),
+            decode=lambda x: x.decode(encoding),
+        )
+
+
+class LengthPrefixedString(Convert):
+    def __init__(self, length_unit: StructUnit, encoding="utf-8"):
+        super().__init__(
+            LengthPrefixedBytes(length_unit),
+            encode=lambda x: x.encode(encoding),
+            decode=lambda x: x.decode(encoding),
+        )
 
 
 def Group(**fields: typing.Dict[str, FieldType]) -> BinarySchema:
