@@ -8,7 +8,7 @@ from enum import IntEnum, auto
 from collections import deque
 from .exceptions import NoResult, ParseError
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 _wait = object()
 _no_result = object()
 
