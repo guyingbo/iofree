@@ -10,6 +10,7 @@ from iofree.contrib.common import Addr
 @iofree.parser
 def example():
     parser = yield from iofree.get_parser()
+    repr(parser)
     yield from Addr
     while True:
         n = yield from schema.uint8

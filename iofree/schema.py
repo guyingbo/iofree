@@ -91,6 +91,9 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
         finally:
             _parent_stack.pop()
 
+        if hasattr(self, "__post_init__"):
+            self.__post_init__()
+
     def __str__(self):
         sl = []
         for name in self.__class__._fields:

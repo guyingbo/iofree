@@ -1,19 +1,27 @@
 import iofree
 import random
 import pytest
+from iofree import schema
 from datetime import datetime
+
+
+class HTTPResponse(schema.BinarySchema):
+    head = schema.EndWith(b"\r\n\r\n")
+
+    def __post_init__(self):
+        first_line, *header_lines = self.head.split(b"\r\n")
+        self.ver, self.code, *status = first_line.split(None, 2)
+        self.status = status[0] if status else b""
+        self.header_lines = header_lines
 
 
 @iofree.parser
 def http_response():
-    parser = yield from iofree.get_parser()
-    first_line = yield from iofree.read_until(b"\r\n")
-    ver, code, status = first_line[:-2].split()
-    assert ver == b"HTTP/1.1"
-    assert code == b"200"
-    assert status == b"OK"
-    header_lines = yield from iofree.read_until(b"\r\n\r\n", return_tail=False)
-    headers = header_lines.split(b"\r\n")
+    response = yield from HTTPResponse
+    assert response.ver == b"HTTP/1.1"
+    assert response.code == b"200"
+    assert response.status == b"OK"
+    yield from iofree.read_until(b"\n", return_tail=True)
     data = yield from iofree.read(4)
     assert data == b"haha"
     (number,) = yield from iofree.read_struct("!H")
@@ -22,12 +30,11 @@ def http_response():
     assert number == int.from_bytes(b"\x11\x11\x11", "big")
     assert (yield from iofree.peek(2)) == b"co"
     assert (yield from iofree.read(7)) == b"content"
-    yield from iofree.write(b"abc")
-    parser.write(b"def")
     yield from iofree.wait()
     assert len((yield from iofree.read_more(5))) >= 5
     yield from iofree.read()
-    return headers
+    yield from iofree.wait_event()
+    return b"\r\n".join(response.header_lines)
 
 
 def test_http_parser():
@@ -41,7 +48,7 @@ def test_http_parser():
         + datetime.now().strftime("%a, %d %b %Y %H:%M:%S GMT").encode()
         + b"\r\nServer: nginx\r\n"
         b"Vary: Accept-Encoding\r\n\r\n"
-        b"haha\x08\x08\x11\x11\x11content extra"
+        b"a line\nhaha\x08\x08\x11\x11\x11content extra"
     )
     while response:
         n = random.randrange(1, 30)
@@ -49,11 +56,10 @@ def test_http_parser():
         del response[:n]
         parser.send(data)
     parser.send()
-    parser.read(1) == b"a"
-    parser.read() == b"bc"
+    parser.send_event(0)
     assert parser.has_result
-    headers = parser.get_result()
-    assert len(headers) == 6
+    parser.get_result()
+    parser.read_output_bytes()
     parser.send(b"redundant")
     assert parser.readall().endswith(b"redundant")
 

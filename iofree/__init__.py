@@ -19,7 +19,6 @@ class Traps(IntEnum):
     _read_until = auto()
     _read_struct = auto()
     _read_int = auto()
-    _write = auto()
     _wait = auto()
     _peek = auto()
     _wait_event = auto()
@@ -69,10 +68,9 @@ class Parser:
     def __init__(self, gen: typing.Generator):
         self.gen = gen
         self._input = bytearray()
-        self._output = bytearray()
         self._input_events = deque()
         self._output_events = deque()
-        self._res_queue = deque()
+        self._res = _no_result
         self._mapping_stack = deque()
         self._next_value = None
         self._last_trap = None
@@ -107,17 +105,11 @@ class Parser:
         self._input.extend(data)
         self._process()
 
-    def read(self, nbytes: int = 0) -> bytes:
-        """
-        read *at most* ``nbytes``
-        """
-        if nbytes == 0 or len(self._output) <= nbytes:
-            data = bytes(self._output)
-            del self._output[:]
-            return data
-        data = bytes(self._output[:nbytes])
-        del self._output[:nbytes]
-        return data
+    def read_output_bytes(self) -> bytes:
+        buf = []
+        for to_send, close, exc, result in self:
+            buf.append(result)
+        return b"".join(buf)
 
     def respond(
         self,
@@ -155,7 +147,7 @@ class Parser:
 
     @property
     def has_result(self) -> bool:
-        return len(self._res_queue) > 0
+        return self._res is not _no_result
 
     def get_result(self):
         """
@@ -164,10 +156,10 @@ class Parser:
         self._process()
         if not self.has_result:
             raise NoResult("no result")
-        return self._res_queue.popleft()
+        return self._res
 
     def set_result(self, result):
-        self._res_queue.append(result)
+        self._res = result
         self.respond(result=result)
 
     def finished(self) -> bool:
@@ -216,12 +208,6 @@ class Parser:
     def has_more_data(self) -> bool:
         "indicate whether input has some bytes left"
         return len(self._input) > 0
-
-    def write(self, data: bytes) -> None:
-        self._output.extend(data)
-
-    def _write(self, data: bytes) -> None:
-        self._output.extend(data)
 
     def send_event(self, event: typing.Any) -> None:
         self._input_events.append(event)
@@ -350,16 +336,9 @@ def read_int(nbytes: int, byteorder: str = "big", *, signed=False, from_=None) -
     return (yield (Traps._read_int, nbytes, byteorder, signed, from_))
 
 
-def write(data: bytes) -> None:
-    """
-    write some bytes to the output buffer
-    """
-    return (yield (Traps._write, data))
-
-
 def wait() -> None:
     """
-    wait for next send or get_result event
+    wait for next send event
     """
     return (yield (Traps._wait,))
 
