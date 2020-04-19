@@ -31,51 +31,18 @@ class State(IntEnum):
     _state_end = auto()
 
 
-class LinkedNode:
-    __slots__ = ("parser", "next")
-
-    def __init__(self, parser, next_):
-        self.parser = parser
-        self.next = next_
-
-
-class ParserChain:
-    def __init__(self, *parsers):
-        nxt = None
-        for parser in reversed(parsers):
-            node = LinkedNode(parser, nxt)
-            nxt = node
-        self.first = node
-
-    def send(self, data):
-        self.first.parser.send(data)
-
-    def __iter__(self):
-        return self._get_events(self.first)
-
-    def _get_events(self, node):
-        for data, close, exc, result in node.parser:
-            if result is not _no_result and node.next:
-                node.next.parser.send(result)
-                yield (data, close, exc, _no_result)
-            else:
-                yield (data, close, exc, result)
-        if node.next:
-            yield from self._get_events(node.next)
-
-
 class Parser:
     def __init__(self, gen: typing.Generator):
         self.gen = gen
         self._input = bytearray()
-        self._input_events = deque()
-        self._output_events = deque()
+        self._input_events: typing.Deque = deque()
+        self._output_events: typing.Deque = deque()
         self._res = _no_result
-        self._mapping_stack = deque()
+        self._mapping_stack: typing.Deque = deque()
         self._next_value = None
-        self._last_trap = None
+        self._last_trap: typing.Optional[tuple] = None
         self._pos = 0
-        self._state = State._state_wait
+        self._state: State = State._state_wait
         self._process()
 
     def __repr__(self):
@@ -84,7 +51,7 @@ class Parser:
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def __next__(self) -> typing.Any:
         if self._output_events:
             return self._output_events.popleft()
         raise StopIteration
@@ -127,7 +94,7 @@ class Parser:
         """
         self._output_events.append((data, close, exc, result))
 
-    def run(self, sock: SocketType):
+    def run(self, sock: SocketType) -> typing.Any:
         "reference implementation of how to deal with socket"
         self.send(b"")
         while True:
@@ -149,7 +116,7 @@ class Parser:
     def has_result(self) -> bool:
         return self._res is not _no_result
 
-    def get_result(self):
+    def get_result(self) -> typing.Any:
         """
         raises *NoResult* exception if no result has been set
         """
@@ -158,14 +125,14 @@ class Parser:
             raise NoResult("no result")
         return self._res
 
-    def set_result(self, result):
+    def set_result(self, result) -> None:
         self._res = result
         self.respond(result=result)
 
     def finished(self) -> bool:
         return self._state is State._state_end
 
-    def _process(self):
+    def _process(self) -> None:
         if self._state is State._state_end:
             return
         self._state = State._state_next
@@ -218,12 +185,12 @@ class Parser:
             return self._input_events.popleft()
         return _wait
 
-    def _wait(self) -> None:
+    def _wait(self) -> typing.Optional[object]:
         if not getattr(self, "_waiting", False):
             self._waiting = True
             return _wait
         self._waiting = False
-        return
+        return None
 
     def _read(self, nbytes: int = 0, from_=None) -> bytes:
         buf = self._input if from_ is None else from_
@@ -237,7 +204,7 @@ class Parser:
         del buf[:nbytes]
         return data
 
-    def _read_more(self, nbytes: int = 1, from_=None) -> bytes:
+    def _read_more(self, nbytes: int = 1, from_=None) -> typing.Union[object, bytes]:
         buf = self._input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
@@ -245,7 +212,9 @@ class Parser:
         del buf[:]
         return data
 
-    def _read_until(self, data: bytes, return_tail: bool = True, from_=None) -> bytes:
+    def _read_until(
+        self, data: bytes, return_tail: bool = True, from_=None
+    ) -> typing.Union[object, bytes]:
         buf = self._input if from_ is None else from_
         index = buf.find(data, self._pos)
         if index == -1:
@@ -261,7 +230,9 @@ class Parser:
         self._pos = 0
         return data
 
-    def _read_struct(self, struct_obj: Struct, from_=None) -> tuple:
+    def _read_struct(
+        self, struct_obj: Struct, from_=None
+    ) -> typing.Union[object, tuple]:
         buf = self._input if from_ is None else from_
         size = struct_obj.size
         if len(buf) < size:
@@ -271,15 +242,15 @@ class Parser:
         return result
 
     def _read_int(
-        self, nbytes: int, byteorder: str = "big", signed=False, from_=None
-    ) -> int:
+        self, nbytes: int, byteorder: str = "big", signed: bool = False, from_=None
+    ) -> typing.Union[object, int]:
         buf = self._input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
         data = self._read(nbytes)
         return int.from_bytes(data, byteorder, signed=signed)
 
-    def _peek(self, nbytes: int = 1, from_=None) -> bytes:
+    def _peek(self, nbytes: int = 1, from_=None) -> typing.Union[object, bytes]:
         buf = self._input if from_ is None else from_
         if len(buf) < nbytes:
             return _wait
@@ -289,7 +260,51 @@ class Parser:
         return self
 
 
-def read(nbytes: int = 0, *, from_=None) -> bytes:
+class LinkedNode:
+    __slots__ = ("parser", "next")
+
+    def __init__(self, parser: Parser, next_: typing.Optional["LinkedNode"]):
+        self.parser = parser
+        self.next = next_
+
+
+class ParserChain:
+    def __init__(self, *parsers: Parser):
+        nxt = None
+        for parser in reversed(parsers):
+            node = LinkedNode(parser, nxt)
+            nxt = node
+        self.first = node
+
+    def send(self, data: bytes) -> None:
+        self.first.parser.send(data)
+
+    def __iter__(self):
+        return self._get_events(self.first)
+
+    def _get_events(
+        self, node: LinkedNode
+    ) -> typing.Generator[
+        typing.Tuple[
+            typing.Optional[bytes],
+            typing.Optional[bool],
+            typing.Optional[Exception],
+            typing.Any,
+        ],
+        None,
+        None,
+    ]:
+        for data, close, exc, result in node.parser:
+            if result is not _no_result and node.next:
+                node.next.parser.send(result)
+                yield (data, close, exc, _no_result)
+            else:
+                yield (data, close, exc, result)
+        if node.next:
+            yield from self._get_events(node.next)
+
+
+def read(nbytes: int = 0, *, from_=None) -> typing.Generator[tuple, bytes, bytes]:
     """
     if nbytes = 0, read as many as possible, empty bytes is valid;
     if nbytes > 0, read *exactly* ``nbytes``
@@ -297,7 +312,7 @@ def read(nbytes: int = 0, *, from_=None) -> bytes:
     return (yield (Traps._read, nbytes, from_))
 
 
-def read_more(nbytes: int = 1, *, from_=None) -> bytes:
+def read_more(nbytes: int = 1, *, from_=None) -> typing.Generator[tuple, bytes, bytes]:
     """
     read *at least* ``nbytes``
     """
@@ -306,28 +321,34 @@ def read_more(nbytes: int = 1, *, from_=None) -> bytes:
     return (yield (Traps._read_more, nbytes, from_))
 
 
-def read_until(data: bytes, *, return_tail: bool = True, from_=None) -> bytes:
+def read_until(
+    data: bytes, *, return_tail: bool = True, from_=None
+) -> typing.Generator[tuple, bytes, bytes]:
     """
     read until some bytes appear
     """
     return (yield (Traps._read_until, data, return_tail, from_))
 
 
-def read_struct(fmt: str, *, from_=None) -> tuple:
+def read_struct(fmt: str, *, from_=None) -> typing.Generator[tuple, tuple, tuple]:
     """
     read specific formatted data
     """
     return (yield (Traps._read_struct, Struct(fmt), from_))
 
 
-def read_raw_struct(struct_obj: Struct, *, from_=None) -> tuple:
+def read_raw_struct(
+    struct_obj: Struct, *, from_=None
+) -> typing.Generator[tuple, tuple, tuple]:
     """
     read raw struct formatted data
     """
     return (yield (Traps._read_struct, struct_obj, from_))
 
 
-def read_int(nbytes: int, byteorder: str = "big", *, signed=False, from_=None) -> int:
+def read_int(
+    nbytes: int, byteorder: str = "big", *, signed: bool = False, from_=None
+) -> typing.Generator[tuple, int, int]:
     """
     read some bytes as integer
     """
@@ -336,14 +357,14 @@ def read_int(nbytes: int, byteorder: str = "big", *, signed=False, from_=None) -
     return (yield (Traps._read_int, nbytes, byteorder, signed, from_))
 
 
-def wait() -> None:
+def wait() -> typing.Generator[tuple, bytes, typing.Optional[object]]:
     """
     wait for next send event
     """
     return (yield (Traps._wait,))
 
 
-def peek(nbytes: int = 1, *, from_=None) -> bytes:
+def peek(nbytes: int = 1, *, from_=None) -> typing.Generator[tuple, bytes, bytes]:
     """
     peek many bytes without taking them away from buffer
     """
@@ -352,19 +373,19 @@ def peek(nbytes: int = 1, *, from_=None) -> bytes:
     return (yield (Traps._peek, nbytes, from_))
 
 
-def wait_event() -> typing.Any:
+def wait_event() -> typing.Generator[tuple, typing.Any, typing.Any]:
     """
     wait for an event
     """
     return (yield (Traps._wait_event,))
 
 
-def get_parser() -> Parser:
+def get_parser() -> typing.Generator[tuple, Parser, Parser]:
     "get current parser object"
     return (yield (Traps._get_parser,))
 
 
-def parser(generator_func: typing.Generator) -> typing.Generator:
+def parser(generator_func: typing.Callable) -> typing.Callable:
     "decorator function to wrap a generator"
 
     def create_parser(*args, **kwargs) -> Parser:

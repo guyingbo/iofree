@@ -16,7 +16,7 @@ from . import (
     read_int,
 )
 
-_parent_stack = deque()
+_parent_stack: typing.Deque["BinarySchema"] = deque()
 
 
 class Unit(abc.ABC):
@@ -34,7 +34,7 @@ class Unit(abc.ABC):
     def __call__(self, obj: typing.Any) -> bytes:
         "convert user-given object to bytes"
 
-    def parse(self, data: bytes, *, strict=True):
+    def parse(self, data: bytes, *, strict: bool = True):
         "a convenient function to help you parse fixed bytes"
         return Parser(self.get_value()).parse(data, strict=strict)
 
@@ -48,7 +48,7 @@ class BinarySchemaMetaclass(type):
     #     namespace["_fields"] = fields
     #     return super().__new__(mcls, name, bases, namespace)
 
-    def __init__(cls, name, bases, namespace):
+    def __init__(cls, name: str, bases: tuple, namespace: dict):
         fields = {}
         for key, value in namespace.items():
             if isinstance(value, (Unit, BinarySchemaMetaclass)):
@@ -65,6 +65,26 @@ class BinarySchemaMetaclass(type):
 
     def __iter__(cls):
         return cls.get_value()
+
+    def get_value(cls) -> typing.Generator[tuple, typing.Any, "BinarySchema"]:
+        "get `BinarySchema` object from bytes"
+        mapping: typing.Dict[str, typing.Any] = {}
+        parser = yield from get_parser()
+        parser._mapping_stack.append(mapping)
+        try:
+            for name, field in cls._fields.items():
+                mapping[name] = yield from field.get_value()
+        except Exception:
+            raise ParseError(mapping)
+        finally:
+            parser._mapping_stack.pop()
+        return cls(*mapping.values())
+
+    def get_parser(cls) -> Parser:
+        return Parser(cls.get_value())
+
+    def parse(cls, data: bytes, *, strict: bool = True) -> "BinarySchema":
+        return cls.get_parser().parse(data, strict=strict)
 
 
 class BinarySchema(metaclass=BinarySchemaMetaclass):
@@ -105,7 +125,7 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
     def __repr__(self):
         return f"<{self}>"
 
-    def __eq__(self, other: "BinarySchema") -> bool:
+    def __eq__(self, other) -> bool:
         if not isinstance(other, self.__class__):
             return False
         for name in self.__class__._fields:
@@ -113,31 +133,9 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
                 return False
         return True
 
-    @classmethod
-    def get_value(cls) -> typing.Generator:
-        "get `BinarySchema` object from bytes"
-        mapping = {}
-        parser = yield from get_parser()
-        parser._mapping_stack.append(mapping)
-        try:
-            for name, field in cls._fields.items():
-                mapping[name] = yield from field.get_value()
-        except Exception:
-            raise ParseError(mapping)
-        finally:
-            parser._mapping_stack.pop()
-        return cls(*mapping.values())
 
-    @classmethod
-    def get_parser(cls) -> Parser:
-        return Parser(cls.get_value())
-
-    @classmethod
-    def parse(cls, data: bytes, *, strict=True) -> "BinarySchema":
-        return cls.get_parser().parse(data, strict=strict)
-
-
-FieldType = typing.Union[BinarySchemaMetaclass, Unit]
+# FieldType = typing.Union[BinarySchemaMetaclass, Unit]
+FieldType = typing.Union[typing.Type[BinarySchema], Unit]
 
 
 class StructUnit(Unit):
@@ -196,7 +194,7 @@ float64be = StructUnit(">d")
 
 
 class Bytes(Unit):
-    def __init__(self, length):
+    def __init__(self, length: int):
         self.length = length
         if length >= 0:
             self._struct = Struct(f"{length}s")
@@ -218,7 +216,7 @@ class Bytes(Unit):
 
 
 class MustEqual(Unit):
-    def __init__(self, unit, value):
+    def __init__(self, unit: Unit, value: typing.Any):
         self.unit = unit
         self.value = value
 
@@ -242,7 +240,7 @@ class MustEqual(Unit):
 
 
 class EndWith(Unit):
-    def __init__(self, bytes_):
+    def __init__(self, bytes_: bytes):
         self.bytes_ = bytes_
 
     def __str__(self):
@@ -256,7 +254,7 @@ class EndWith(Unit):
 
 
 class LengthPrefixedBytes(Unit):
-    def __init__(self, length_unit: StructUnit):
+    def __init__(self, length_unit: typing.Union[StructUnit, IntUnit]):
         self.length_unit = length_unit
 
     def __str__(self):
@@ -271,8 +269,10 @@ class LengthPrefixedBytes(Unit):
         return self.length_unit(length) + struct.pack(f"{length}s", obj)
 
 
-class LengthPrefixedObjectList(Unit):
-    def __init__(self, length_unit: StructUnit, object_unit: FieldType):
+class LengthPrefixed(Unit):
+    def __init__(
+        self, length_unit: typing.Union[StructUnit, IntUnit], object_unit: FieldType
+    ):
         self.length_unit = length_unit
         self.object_unit = object_unit
 
@@ -285,6 +285,12 @@ class LengthPrefixedObjectList(Unit):
         parser = Parser(self._gen())
         return parser.parse(data)
 
+    @abc.abstractmethod
+    def _gen(self) -> typing.Generator:
+        ""
+
+
+class LengthPrefixedObjectList(LengthPrefixed):
     def _gen(self):
         parser = yield from get_parser()
         lst = []
@@ -301,7 +307,7 @@ class LengthPrefixedObjectList(Unit):
         return self.length_unit(len(bytes_)) + bytes_
 
 
-class LengthPrefixedObject(LengthPrefixedObjectList):
+class LengthPrefixedObject(LengthPrefixed):
     def _gen(self):
         parser = yield from get_parser()
         v = yield from self.object_unit.get_value()
@@ -339,7 +345,11 @@ class Switch(Unit):
 
 
 class SizedIntEnum(Unit):
-    def __init__(self, size_unit: StructUnit, enum_class):
+    def __init__(
+        self,
+        size_unit: typing.Union[StructUnit, IntUnit],
+        enum_class: typing.Type[enum.IntEnum],
+    ):
         self.size_unit = size_unit
         self.enum_class = enum_class
 
@@ -355,9 +365,7 @@ class SizedIntEnum(Unit):
 
 
 class Convert(Unit):
-    def __init__(
-        self, unit: FieldType, *, encode: typing.Callable, decode: typing.Callable
-    ):
+    def __init__(self, unit: Unit, *, encode: typing.Callable, decode: typing.Callable):
         self.unit = unit
         self.encode = encode
         self.decode = decode
@@ -372,12 +380,12 @@ class Convert(Unit):
         v = yield from self.unit.get_value()
         return self.decode(v)
 
-    def __call__(self, obj) -> bytes:
+    def __call__(self, obj: typing.Any) -> bytes:
         return self.unit(self.encode(obj))
 
 
 class String(Convert):
-    def __init__(self, length, encoding="utf-8"):
+    def __init__(self, length: int, encoding="utf-8"):
         super().__init__(
             Bytes(length),
             encode=lambda x: x.encode(encoding),
@@ -386,7 +394,9 @@ class String(Convert):
 
 
 class LengthPrefixedString(Convert):
-    def __init__(self, length_unit: StructUnit, encoding="utf-8"):
+    def __init__(
+        self, length_unit: typing.Union[StructUnit, IntUnit], encoding="utf-8"
+    ):
         super().__init__(
             LengthPrefixedBytes(length_unit),
             encode=lambda x: x.encode(encoding),
@@ -394,5 +404,5 @@ class LengthPrefixedString(Convert):
         )
 
 
-def Group(**fields: typing.Dict[str, FieldType]) -> BinarySchema:
+def Group(**fields: typing.Dict[str, FieldType]) -> typing.Type[BinarySchema]:
     return type("Group", (BinarySchema,), fields)
