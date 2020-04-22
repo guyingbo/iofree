@@ -88,7 +88,7 @@ class BinarySchemaMetaclass(type):
 
 
 class BinarySchema(metaclass=BinarySchemaMetaclass):
-    "The main class for users to define their own binary structures"
+    """The main class for users to define their own binary structures"""
 
     def __init__(self, *args):
         if len(args) != len(self.__class__._fields):
@@ -187,6 +187,8 @@ int64 = StructUnit("q")
 int64be = StructUnit(">q")
 uint64 = StructUnit("Q")
 uint64be = StructUnit(">Q")
+float16 = StructUnit("e")
+float16be = StructUnit(">e")
 float32 = StructUnit("f")
 float32be = StructUnit(">f")
 float64 = StructUnit("d")

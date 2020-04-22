@@ -54,19 +54,24 @@ b'\x01\x00\x00\x00\x03'
 ### Built-in units:
 
 commonly used number units:
+
 * int8 uint8
 * int16 int16be uint16 uint16be
 * int24 int24be uint24 uint24be
 * int32 int32be uint32 uint32be
 * int64 int64be uint64 uint64be
-* float32 float32be float64 float64be
+* float16 float16be
+* float32 float32be
+* float64 float64be
 
 simple units:
+
 * Bytes
 * String
 * EndWith
 
 composite units:
+
 * LengthPrefixedBytes
 * LengthPrefixedString
 * LengthPrefixedObjectList
@@ -136,7 +141,6 @@ A complete socks5 Addr [definition](https://github.com/guyingbo/iofree/blob/mast
     * [socks5 models](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/socks5.py) and [socks5 protocol](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/protocols/socks5.py)
     * [shadowsocks parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/shadowsocks/parser.py)
     * [shadowsocks aead parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/aead/parser.py)
-    * [simple http parser](https://github.com/guyingbo/shadowproxy/blob/master/shadowproxy/proxies/http/parser.py)
 * [python tls1.3](https://github.com/guyingbo/tls1.3)
     * [TLS1.3 models](https://github.com/guyingbo/tls1.3/blob/master/tls/models.py) and [protocol](https://github.com/guyingbo/tls1.3/blob/master/tls/session.py)
 
