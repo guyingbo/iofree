@@ -33,6 +33,7 @@
 # | 2  |  1   |  1   | Variable |    2     | Variable |
 # +----+------+------+----------+----------+----------+
 import enum
+
 from .. import schema
 from .common import Addr
 

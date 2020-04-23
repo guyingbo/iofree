@@ -2,10 +2,11 @@
 to help you implement network protocols and binary parsers."""
 import sys
 import typing
+from collections import deque
+from enum import IntEnum, auto
 from socket import SocketType
 from struct import Struct
-from enum import IntEnum, auto
-from collections import deque
+
 from .exceptions import NoResult, ParseError
 
 __version__ = "0.2.4"

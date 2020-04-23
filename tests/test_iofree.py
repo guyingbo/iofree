@@ -1,8 +1,10 @@
-import iofree
 import random
-import pytest
-from iofree import schema
 from datetime import datetime
+
+import pytest
+
+import iofree
+from iofree import schema
 
 
 class HTTPResponse(schema.BinarySchema):

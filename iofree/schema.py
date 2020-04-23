@@ -2,19 +2,20 @@ import abc
 import enum
 import struct
 import typing
-from struct import Struct
 from collections import deque
-from .exceptions import ParseError
+from struct import Struct
+
 from . import (
-    read_raw_struct,
-    read,
-    read_until,
-    read_struct,
     Parser,
     get_parser,
-    wait,
+    read,
     read_int,
+    read_raw_struct,
+    read_struct,
+    read_until,
+    wait,
 )
+from .exceptions import ParseError
 
 _parent_stack: typing.Deque["BinarySchema"] = deque()
 
@@ -49,7 +50,7 @@ class BinarySchemaMetaclass(type):
     #     return super().__new__(mcls, name, bases, namespace)
 
     def __init__(cls, name: str, bases: tuple, namespace: dict):
-        fields = {}
+        fields: typing.Dict[str, FieldType] = {}
         for key, value in namespace.items():
             if isinstance(value, (Unit, BinarySchemaMetaclass)):
                 fields[key] = value

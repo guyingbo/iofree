@@ -1,8 +1,10 @@
-import iofree
 import socket
-import pytest
 import threading
 from time import sleep
+
+import pytest
+
+import iofree
 from iofree import schema
 from iofree.contrib.common import Addr
 
