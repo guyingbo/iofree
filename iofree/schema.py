@@ -41,27 +41,25 @@ class Unit(abc.ABC):
 
 
 class BinarySchemaMetaclass(type):
-    # def __new__(mcls, name, bases, namespace, **kwargs):
-    #     fields = {}
-    #     for key, value in namespace.items():
-    #         if isinstance(value, (Unit, mcls)):
-    #             fields[key] = value
-    #     namespace["_fields"] = fields
-    #     return super().__new__(mcls, name, bases, namespace)
-
-    def __init__(cls, name: str, bases: tuple, namespace: dict):
+    def __new__(mcls, name, bases, namespace, **kwargs):
         fields: typing.Dict[str, FieldType] = {}
-        for key, value in namespace.items():
-            if isinstance(value, (Unit, BinarySchemaMetaclass)):
-                fields[key] = value
-        cls._fields = fields
-        super().__init__(name, bases, namespace)
+        for key, member in namespace.items():
+            if isinstance(member, (Unit, BinarySchemaMetaclass)):
+                fields[key] = member
+                namespace[key] = MemberDescriptor(key, member)
+        namespace["_fields"] = fields
+        return super().__new__(mcls, name, bases, namespace)
+
+    # def __init__(cls, name: str, bases: tuple, namespace: dict):
+    #     fields: typing.Dict[str, FieldType] = {}
+    #     for key, member in namespace.items():
+    #         if isinstance(member, (Unit, BinarySchemaMetaclass)):
+    #             fields[key] = member
+    #     cls._fields = fields
+    #     super().__init__(name, bases, namespace)
 
     def __str__(cls):
-        sl = []
-        for name, field in cls._fields.items():
-            sl.append(f"{name}={field}")
-        s = ", ".join(sl)
+        s = ", ".join(f"{name}={field}" for name, field in cls._fields.items())
         return f"{cls.__name__}({s})"
 
     def __iter__(cls):
@@ -92,28 +90,44 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
     """The main class for users to define their own binary structures"""
 
     def __init__(self, *args):
+        self._modified = True
         if len(args) != len(self.__class__._fields):
             raise ValueError(
                 f"need {len(self.__class__._fields)} args, got {len(args)}"
             )
+        self.values = {}
+        self.bins = {}
         _parent_stack.append(self)
         try:
-            self.bins = {}
             for arg, (name, field) in zip(args, self.__class__._fields.items()):
-                if isinstance(field, BinarySchemaMetaclass):
-                    binary = arg.binary
-                elif isinstance(field, Unit):
-                    binary = field(arg)
-                if arg is ...:
-                    arg = field.get_default()
+                # if isinstance(field, BinarySchemaMetaclass):
+                #     binary = arg.binary
+                # elif isinstance(field, Unit):
+                #     binary = field(arg)
+                # if arg is ...:
+                #     arg = field.get_default()
                 setattr(self, name, arg)
-                self.bins[name] = binary
-            self.binary = b"".join(self.bins.values())
+                # self.bins[name] = binary
         finally:
             _parent_stack.pop()
 
         if hasattr(self, "__post_init__"):
             self.__post_init__()
+
+    def member_get(self, name):
+        return self.values[name]
+
+    def member_set(self, name, value, binary):
+        self.bins[name] = binary
+        self.values[name] = value
+        self._modified = True
+
+    @property
+    def binary(self):
+        if self._modified:
+            self._binary = b"".join(self.bins.values())
+            self._modified = False
+        return self._binary
 
     def __str__(self):
         sl = []
@@ -137,6 +151,28 @@ class BinarySchema(metaclass=BinarySchemaMetaclass):
 
 # FieldType = typing.Union[BinarySchemaMetaclass, Unit]
 FieldType = typing.Union[typing.Type[BinarySchema], Unit]
+
+
+class MemberDescriptor:
+    __slots__ = ("key", "member")
+
+    def __init__(self, key: str, member: FieldType):
+        self.key = key
+        self.member = member
+
+    def __get__(self, obj: typing.Optional[BinarySchema], owner):
+        if obj is None:
+            return self.member
+        return obj.member_get(self.key)
+
+    def __set__(self, obj: BinarySchema, value):
+        if isinstance(self.member, BinarySchemaMetaclass):
+            binary = value.binary
+        elif isinstance(self.member, Unit):
+            binary = self.member(value)
+        if value is ...:
+            value = self.member.parse(binary)
+        obj.member_set(self.key, value, binary)
 
 
 class StructUnit(Unit):
@@ -232,9 +268,6 @@ class MustEqual(Unit):
             raise ValueError(f"expect {self.value}, got {result}")
         return result
 
-    def get_default(self):
-        return self.value
-
     def __call__(self, obj) -> bytes:
         if obj is not ...:
             if self.value != obj:
@@ -284,7 +317,7 @@ class LengthPrefixed(Unit):
 
     def get_value(self):
         length = yield from self.length_unit.get_value()
-        data, = yield from read_struct(f"{length}s")
+        (data,) = yield from read_struct(f"{length}s")
         parser = Parser(self._gen())
         return parser.parse(data)
 
