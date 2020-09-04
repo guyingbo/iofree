@@ -11,7 +11,7 @@ from . import (
     read,
     read_int,
     read_raw_struct,
-    read_struct,
+    read_format,
     read_until,
     wait,
 )
@@ -298,7 +298,7 @@ class LengthPrefixedBytes(Unit):
 
     def get_value(self):
         length = yield from self.length_unit.get_value()
-        return (yield from read_struct(f"{length}s"))[0]
+        return (yield from read_format(f"{length}s"))[0]
 
     def __call__(self, obj: bytes) -> bytes:
         length = len(obj)
@@ -317,7 +317,7 @@ class LengthPrefixed(Unit):
 
     def get_value(self):
         length = yield from self.length_unit.get_value()
-        (data,) = yield from read_struct(f"{length}s")
+        (data,) = yield from read_format(f"{length}s")
         parser = Parser(self._gen())
         return parser.parse(data)
 

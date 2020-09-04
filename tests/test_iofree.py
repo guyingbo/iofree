@@ -25,8 +25,8 @@ def http_response():
     assert response.status == b"OK"
     yield from iofree.read_until(b"\n", return_tail=True)
     data = yield from iofree.read(4)
-    assert data == b"haha"
-    (number,) = yield from iofree.read_struct("!H")
+    assert bytes(data) == b"haha"
+    (number,) = yield from iofree.read_format("!H")
     assert number == 8 * 256 + 8
     number = yield from iofree.read_int(3)
     assert number == int.from_bytes(b"\x11\x11\x11", "big")
@@ -59,6 +59,8 @@ def test_http_parser():
         parser.send(data)
     parser.send()
     parser.send_event(0)
+    if not parser.has_result:
+        print(parser.buffer, parser._pos)
     assert parser.has_result
     parser.get_result()
     parser.read_output_bytes()

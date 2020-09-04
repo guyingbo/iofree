@@ -7,11 +7,15 @@ from enum import IntEnum, auto
 from socket import SocketType
 from struct import Struct
 
+from .buffer import Buffer, StarvingException
 from .exceptions import NoResult, ParseError
 
 __version__ = "0.2.4"
 _wait = object()
 _no_result = object()
+
+
+BytesLike = typing.Union[typing.ByteString, memoryview]
 
 
 class Traps(IntEnum):
@@ -33,16 +37,16 @@ class State(IntEnum):
 
 
 class Parser:
-    def __init__(self, gen: typing.Generator):
+    def __init__(self, gen: typing.Generator, buffer: Buffer = None):
         self.gen = gen
-        self._input = bytearray()
+        self.buffer = buffer or Buffer()
         self._input_events: typing.Deque = deque()
         self._output_events: typing.Deque = deque()
         self._res = _no_result
         self._mapping_stack: typing.Deque = deque()
         self._next_value = None
         self._last_trap: typing.Optional[tuple] = None
-        self._pos = 0
+        self._pos = -1
         self._state: State = State._state_wait
         self._process()
 
@@ -66,11 +70,17 @@ class Parser:
             raise ParseError("redundant data left")
         return self.get_result()
 
-    def send(self, data: bytes = b"") -> None:
-        """
-        send data for parsing
-        """
-        self._input.extend(data)
+    def send(self, data: BytesLike = b""):
+        if data:
+            self.buffer.push(data)
+        self._process()
+
+    def read_from_socket(self, sock: SocketType) -> None:
+        self.push_from_socket(sock)
+        self._process()
+
+    async def read_from_async(self, sock: SocketType) -> None:
+        await self.push_from_async(sock)
         self._process()
 
     def read_output_bytes(self) -> bytes:
@@ -97,7 +107,7 @@ class Parser:
 
     def run(self, sock: SocketType) -> typing.Any:
         "reference implementation of how to deal with socket"
-        self.send(b"")
+        self._process()
         while True:
             for to_send, close, exc, result in self:
                 if to_send:
@@ -175,7 +185,7 @@ class Parser:
 
     def has_more_data(self) -> bool:
         "indicate whether input has some bytes left"
-        return len(self._input) > 0
+        return self.buffer.data_size > 0
 
     def send_event(self, event: typing.Any) -> None:
         self._input_events.append(event)
@@ -193,69 +203,50 @@ class Parser:
         self._waiting = False
         return None
 
-    def _read(self, nbytes: int = 0, from_=None) -> bytes:
-        buf = self._input if from_ is None else from_
-        if nbytes == 0:
-            data = bytes(buf)
-            del buf[:]
-            return data
-        if len(buf) < nbytes:
+    def _read(self, nbytes: int = 0) -> bytearray:
+        try:
+            return self.buffer.pull(nbytes)
+        except StarvingException:
             return _wait
-        data = bytes(buf[:nbytes])
-        del buf[:nbytes]
-        return data
 
-    def _read_more(self, nbytes: int = 1, from_=None) -> typing.Union[object, bytes]:
-        buf = self._input if from_ is None else from_
-        if len(buf) < nbytes:
+    def _read_more(self, nbytes: int = 1) -> typing.Union[object, bytes]:
+        try:
+            return self.buffer.pull_amap(nbytes)
+        except StarvingException:
             return _wait
-        data = bytes(buf)
-        del buf[:]
-        return data
 
     def _read_until(
-        self, data: bytes, return_tail: bool = True, from_=None
+        self, data: bytes, return_tail: bool = True
     ) -> typing.Union[object, bytes]:
-        buf = self._input if from_ is None else from_
-        index = buf.find(data, self._pos)
-        if index == -1:
-            self._pos = len(buf) - len(data) + 1
-            self._pos = self._pos if self._pos > 0 else 0
+        try:
+            res = self.buffer.pull_until(
+                data, init_pos=self._pos, return_tail=return_tail
+            )
+            self._pos = -1
+            return res
+        except StarvingException as e:
+            self._pos = e.args[0]
             return _wait
-        size = index + len(data)
-        if return_tail:
-            data = bytes(buf[:size])
-        else:
-            data = bytes(buf[:index])
-        del buf[:size]
-        self._pos = 0
-        return data
 
-    def _read_struct(
-        self, struct_obj: Struct, from_=None
-    ) -> typing.Union[object, tuple]:
-        buf = self._input if from_ is None else from_
-        size = struct_obj.size
-        if len(buf) < size:
+    def _read_struct(self, struct_obj: Struct) -> typing.Union[object, tuple]:
+        try:
+            return self.buffer.pull_struct(struct_obj)
+        except StarvingException:
             return _wait
-        result = struct_obj.unpack_from(buf)
-        del buf[:size]
-        return result
 
     def _read_int(
-        self, nbytes: int, byteorder: str = "big", signed: bool = False, from_=None
+        self, nbytes: int, byteorder: str, signed: bool
     ) -> typing.Union[object, int]:
-        buf = self._input if from_ is None else from_
-        if len(buf) < nbytes:
+        try:
+            return self.buffer.pull_int(nbytes, byteorder, signed)
+        except StarvingException:
             return _wait
-        data = self._read(nbytes)
-        return int.from_bytes(data, byteorder, signed=signed)
 
-    def _peek(self, nbytes: int = 1, from_=None) -> typing.Union[object, bytes]:
-        buf = self._input if from_ is None else from_
-        if len(buf) < nbytes:
+    def _peek(self, nbytes: int = 1) -> typing.Union[object, bytes]:
+        try:
+            return self.buffer.peek(nbytes)
+        except StarvingException:
             return _wait
-        return bytes(buf[:nbytes])
 
     def _get_parser(self) -> "Parser":
         return self
@@ -305,57 +296,55 @@ class ParserChain:
             yield from self._get_events(node.next)
 
 
-def read(nbytes: int = 0, *, from_=None) -> typing.Generator[tuple, bytes, bytes]:
+def read(nbytes: int = 0) -> typing.Generator[tuple, bytes, bytes]:
     """
     if nbytes = 0, read as many as possible, empty bytes is valid;
     if nbytes > 0, read *exactly* ``nbytes``
     """
-    return (yield (Traps._read, nbytes, from_))
+    return (yield (Traps._read, nbytes))
 
 
-def read_more(nbytes: int = 1, *, from_=None) -> typing.Generator[tuple, bytes, bytes]:
+def read_more(nbytes: int = 1) -> typing.Generator[tuple, bytes, bytes]:
     """
     read *at least* ``nbytes``
     """
     if nbytes <= 0:
         raise ValueError(f"nbytes must > 0, but got {nbytes}")
-    return (yield (Traps._read_more, nbytes, from_))
+    return (yield (Traps._read_more, nbytes))
 
 
 def read_until(
-    data: bytes, *, return_tail: bool = True, from_=None
+    data: bytes, *, return_tail: bool = True
 ) -> typing.Generator[tuple, bytes, bytes]:
     """
     read until some bytes appear
     """
-    return (yield (Traps._read_until, data, return_tail, from_))
+    return (yield (Traps._read_until, data, return_tail))
 
 
-def read_struct(fmt: str, *, from_=None) -> typing.Generator[tuple, tuple, tuple]:
+def read_format(fmt: str) -> typing.Generator[tuple, tuple, tuple]:
     """
     read specific formatted data
     """
-    return (yield (Traps._read_struct, Struct(fmt), from_))
+    return (yield (Traps._read_struct, Struct(fmt)))
 
 
-def read_raw_struct(
-    struct_obj: Struct, *, from_=None
-) -> typing.Generator[tuple, tuple, tuple]:
+def read_raw_struct(struct_obj: Struct) -> typing.Generator[tuple, tuple, tuple]:
     """
     read raw struct formatted data
     """
-    return (yield (Traps._read_struct, struct_obj, from_))
+    return (yield (Traps._read_struct, struct_obj))
 
 
 def read_int(
-    nbytes: int, byteorder: str = "big", *, signed: bool = False, from_=None
+    nbytes: int, byteorder: str = "big", *, signed: bool = False
 ) -> typing.Generator[tuple, int, int]:
     """
     read some bytes as integer
     """
     if nbytes <= 0:
         raise ValueError(f"nbytes must > 0, but got {nbytes}")
-    return (yield (Traps._read_int, nbytes, byteorder, signed, from_))
+    return (yield (Traps._read_int, nbytes, byteorder, signed))
 
 
 def wait() -> typing.Generator[tuple, bytes, typing.Optional[object]]:
@@ -365,13 +354,13 @@ def wait() -> typing.Generator[tuple, bytes, typing.Optional[object]]:
     return (yield (Traps._wait,))
 
 
-def peek(nbytes: int = 1, *, from_=None) -> typing.Generator[tuple, bytes, bytes]:
+def peek(nbytes: int = 1) -> typing.Generator[tuple, bytes, bytes]:
     """
     peek many bytes without taking them away from buffer
     """
     if nbytes <= 0:
         raise ValueError(f"nbytes must > 0, but got {nbytes}")
-    return (yield (Traps._peek, nbytes, from_))
+    return (yield (Traps._peek, nbytes))
 
 
 def wait_event() -> typing.Generator[tuple, typing.Any, typing.Any]:
@@ -386,11 +375,18 @@ def get_parser() -> typing.Generator[tuple, Parser, Parser]:
     return (yield (Traps._get_parser,))
 
 
-def parser(generator_func: typing.Callable) -> typing.Callable:
-    "decorator function to wrap a generator"
+def parser(func: typing.Callable = None, *, buffer: Buffer = None) -> typing.Callable:
+    def decorator(generator_func: typing.Callable) -> typing.Callable:
+        "decorator function to wrap a generator"
 
-    def create_parser(*args, **kwargs) -> Parser:
-        return Parser(generator_func(*args, **kwargs))
+        def create_parser(*args, **kwargs) -> Parser:
+            nonlocal buffer
+            if buffer is None:
+                buffer = Buffer(1023)
 
-    generator_func.parser = create_parser
-    return generator_func
+            return Parser(generator_func(*args, **kwargs), buffer=buffer)
+
+        generator_func.parser = create_parser
+        return generator_func
+
+    return decorator if func is None else decorator(func)
