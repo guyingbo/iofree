@@ -1,5 +1,5 @@
 Sphinx==3.0.0
-Pygments==2.7.4
+Pygments==2.15.0
 setuptools==70.0.0
 docutils==0.14
 mock==1.0.1
