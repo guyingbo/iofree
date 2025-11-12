@@ -71,6 +71,38 @@ def test_http_parser2():
         test_http_parser()
 
 
+def test_incomplete_http_parser():
+    parser = http_response.parser()
+    response_start = b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n"
+    parser.send(response_start)
+    # The parser should not have a result yet as the body is incomplete
+    assert not parser.has_result
+    with pytest.raises(iofree.NoResult):
+        parser.get_result()
+    # Send some more data, but still incomplete
+    parser.send(b"some data")
+    assert not parser.has_result
+    with pytest.raises(iofree.NoResult):
+        parser.get_result()
+
+
+def test_http_parser_different_status():
+    parser = http_response.parser()
+    response = bytearray(
+        b"HTTP/1.1 404 Not Found\r\n"
+        b"Connection: close\r\n\r\n"
+        b"a line\nhaha\x08\x08\x11\x11\x11content extra"
+    )
+    with pytest.raises(iofree.ParseError):  # Expecting 200 OK, but got 404
+        while response:
+            n = random.randrange(1, 30)
+            data = response[:n]
+            del response[:n]
+            parser.send(data)
+        parser.send()
+
+
+
 @iofree.parser
 def simple():
     parser = yield from iofree.get_parser()
@@ -80,16 +112,26 @@ def simple():
     raise Exception("special")
 
 
+    parser.send(b"haha")
+
+
 @iofree.parser
-def bad_reader():
+def bad_reader_value_errors():
     with pytest.raises(ValueError):
         yield from iofree.read_more(-1)
     with pytest.raises(ValueError):
         yield from iofree.peek(-1)
     with pytest.raises(ValueError):
         yield from iofree.read_int(-1)
+    yield from iofree.wait() # To allow the parser to run through
 
-    yield from iofree.wait()
+def test_bad_reader_value_errors():
+    parser = bad_reader_value_errors.parser()
+    parser.send(b"data") # Send some data to trigger the parser
+
+
+@iofree.parser
+def bad_reader():
     yield "bad"
 
 
@@ -102,6 +144,53 @@ def test_exception():
 
 
 def test_bad():
-    parser = bad_reader.parser()
     with pytest.raises(RuntimeError):
-        parser.send(b"haha")
+        bad_reader.parser()
+
+
+@iofree.parser
+def read_all_data_parser():
+    yield from iofree.wait()
+    data = yield from iofree.read(0)
+    return data
+
+
+def test_read_all_data():
+    parser = read_all_data_parser.parser()
+    parser.send(b"helloworld")
+    assert parser.has_result
+    assert parser.get_result() == b"helloworld"
+
+
+@iofree.parser
+def read_exactly_n_parser():
+    data = yield from iofree.read(5)
+    return data
+
+
+def test_read_exactly_n():
+    parser = read_exactly_n_parser.parser()
+    parser.send(b"hello")
+    assert parser.has_result
+    assert parser.get_result() == b"hello"
+
+    parser = read_exactly_n_parser.parser()
+    parser.send(b"hell")
+    assert not parser.has_result
+    with pytest.raises(iofree.NoResult):
+        parser.get_result()
+    parser.send(b"o")
+    assert parser.has_result
+    assert parser.get_result() == b"hello"
+
+    # Test that extra data does not cause an error with send()
+    parser = read_exactly_n_parser.parser()
+    parser.send(b"toolongdata")
+    assert parser.has_result
+    assert parser.get_result() == b"toolo"
+
+    # Test that extra data *does* cause an error with parse(strict=True)
+    parser = read_exactly_n_parser.parser()
+    with pytest.raises(iofree.ParseError):
+        parser.parse(b"toolongdata", strict=True)
+
