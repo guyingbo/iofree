@@ -323,7 +323,7 @@ class LengthPrefixed(Unit):
 
     @abc.abstractmethod
     def _gen(self) -> typing.Generator:
-        ""
+        """"""
 
 
 class LengthPrefixedObjectList(LengthPrefixed):

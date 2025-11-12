@@ -27,7 +27,10 @@ def write_data(sock, n):
     for i in range(n):
         sock.sendall(i.to_bytes(1, "big"))
         sleep(0.001)
-    sock.shutdown(socket.SHUT_WR)
+    try:
+        sock.shutdown(socket.SHUT_WR)
+    except OSError:
+        pass
 
 
 def test_parser():

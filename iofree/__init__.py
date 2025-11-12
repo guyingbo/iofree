@@ -1,5 +1,6 @@
 """`iofree` is an easy-to-use and powerful library \
 to help you implement network protocols and binary parsers."""
+
 import sys
 import typing
 from collections import deque
@@ -9,7 +10,7 @@ from struct import Struct
 
 from .exceptions import NoResult, ParseError
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 _wait = object()
 _no_result = object()
 
@@ -283,9 +284,7 @@ class ParserChain:
     def __iter__(self):
         return self._get_events(self.first)
 
-    def _get_events(
-        self, node: LinkedNode
-    ) -> typing.Generator[
+    def _get_events(self, node: LinkedNode) -> typing.Generator[
         typing.Tuple[
             typing.Optional[bytes],
             typing.Optional[bool],
