@@ -1,7 +1,6 @@
 # iofree
 
-[![Build Status](https://travis-ci.org/guyingbo/iofree.svg?branch=master)](https://travis-ci.org/guyingbo/iofree)
-[![Documentation Status](https://readthedocs.org/projects/iofree/badge/?version=latest)](https://iofree.readthedocs.io/en/latest/?badge=latest)
+[![Python package](https://github.com/guyingbo/iofree/actions/workflows/pythonpackage.yml/badge.svg)](https://github.com/guyingbo/iofree/actions/workflows/pythonpackage.yml)
 [![Python Version](https://img.shields.io/pypi/pyversions/iofree.svg)](https://pypi.python.org/pypi/iofree)
 [![Version](https://img.shields.io/pypi/v/iofree.svg)](https://pypi.python.org/pypi/iofree)
 [![Format](https://img.shields.io/pypi/format/iofree.svg)](https://pypi.python.org/pypi/iofree)
