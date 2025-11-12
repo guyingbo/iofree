@@ -81,8 +81,6 @@ composite units:
 * Convert
 * Group
 
-[API docs](https://iofree.readthedocs.io/en/latest/index.html)
-
 Here is a real life example [definition](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/socks5.py) of socks5 client request, you can see the following code snippet:
 
 ```python
