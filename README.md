@@ -1,4 +1,4 @@
-# iofree
+# iofree: Effortless Network Protocol and Binary Parser Implementation
 
 [![Python package](https://github.com/guyingbo/iofree/actions/workflows/pythonpackage.yml/badge.svg)](https://github.com/guyingbo/iofree/actions/workflows/pythonpackage.yml)
 [![Python Version](https://img.shields.io/pypi/pyversions/iofree.svg)](https://pypi.python.org/pypi/iofree)
@@ -7,22 +7,21 @@
 [![License](https://img.shields.io/pypi/l/iofree.svg)](https://pypi.python.org/pypi/iofree)
 [![codecov](https://codecov.io/gh/guyingbo/iofree/branch/master/graph/badge.svg)](https://codecov.io/gh/guyingbo/iofree)
 
-`iofree` is an easy-to-use and powerful library to help you implement network protocols and binary parsers.
+`iofree` is a powerful and easy-to-use Python library designed to simplify the implementation of network protocols and binary parsers. It allows developers to define complex data structures and parsing logic in a clear, declarative, and Pythonic way.
 
 ## Installation
 
-~~~
+To install `iofree`, simply use pip:
+
+```bash
 pip install iofree
-~~~
+```
 
-## Advantages
-
-Using iofree, you can:
-
-* define network protocols and file format in a clear and precise manner
-* parse both binary streams and files
+It is recommended to install `iofree` in a virtual environment.
 
 ## Documentation
+
+For more in-depth examples and API reference, please refer to the [official documentation](https://iofree.readthedocs.io/en/latest/) (link coming soon).
 
 ### Basic Usage
 
@@ -42,7 +41,7 @@ b'\x00\x00\x00\x03'
 >>> class Simple(schema.BinarySchema):
 ...     a = schema.uint8
 ...     b = schema.uint32be # "be" for big-endian
-...
+... 
 >>> Simple(1, 3).binary
 b'\x01\x00\x00\x00\x03'
 >>> binary = _
@@ -52,37 +51,38 @@ b'\x01\x00\x00\x00\x03'
 
 ### Built-in units:
 
-commonly used number units:
+`iofree` provides a rich set of built-in units to define various data types and structures:
 
-* int8 uint8
-* int16 int16be uint16 uint16be
-* int24 int24be uint24 uint24be
-* int32 int32be uint32 uint32be
-* int64 int64be uint64 uint64be
-* float16 float16be
-* float32 float32be
-* float64 float64be
+**Commonly used number units:**
 
-simple units:
+*   `int8`, `uint8`: Signed/unsigned 8-bit integers.
+*   `int16`, `int16be`, `uint16`, `uint16be`: Signed/unsigned 16-bit integers (with big-endian variants).
+*   `int24`, `int24be`, `uint24`, `uint24be`: Signed/unsigned 24-bit integers (with big-endian variants).
+*   `int32`, `int32be`, `uint32`, `uint32be`: Signed/unsigned 32-bit integers (with big-endian variants).
+*   `int64`, `int64be`, `uint64`, `uint64be`: Signed/unsigned 64-bit integers (with big-endian variants).
+*   `float16`, `float16be`: 16-bit floating-point numbers.
+*   `float32`, `float32be`: 32-bit floating-point numbers.
+*   `float64`, `float64be`: 64-bit floating-point numbers.
 
-* Bytes
-* String
-* EndWith
+**Simple units:**
 
-composite units:
+*   `Bytes`: A fixed-length sequence of bytes.
+*   `String`: A fixed-length string (decoded from bytes).
+*   `EndWith`: Reads until a specific byte sequence is encountered.
 
-* LengthPrefixedBytes
-* LengthPrefixedString
-* LengthPrefixedObjectList
-* LengthPrefixedObject
-* MustEqual
-* Switch
-* SizedIntEnum
-* Convert
-* Group
+**Composite units:**
+
+*   `LengthPrefixedBytes`: Bytes prefixed by their length.
+*   `LengthPrefixedString`: String prefixed by its length.
+*   `LengthPrefixedObjectList`: A list of objects prefixed by their total length.
+*   `LengthPrefixedObject`: An object prefixed by its length.
+*   `MustEqual`: Ensures a field's value matches a specific constant.
+*   `Switch`: Defines a field whose schema depends on the value of another field.
+*   `SizedIntEnum`: An integer-backed enumeration.
+*   `Convert`: Applies encoding/decoding functions to a field's value.
+*   `Group`: Groups multiple fields together, often used for reusability.
 
 Here is a real life example [definition](https://github.com/guyingbo/iofree/blob/master/iofree/contrib/socks5.py) of socks5 client request, you can see the following code snippet:
-
 ```python
 class Socks5ClientRequest(schema.BinarySchema):
     ver = schema.MustEqual(schema.uint8, 5)
@@ -144,3 +144,11 @@ A complete socks5 Addr [definition](https://github.com/guyingbo/iofree/blob/mast
 ## References
 
 `iofree` parser is inspired by project [ohneio](https://github.com/acatton/ohneio).
+
+## Contributing
+
+Contributions are welcome! Please refer to the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+`iofree` is released under the [MIT License](LICENSE).
